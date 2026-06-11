@@ -43,26 +43,38 @@ Konsep ini mengedepankan integrasi lengkap antara database transaksional (OLTP),
 [ Apache Superset / PowerBI / Tableau ] (BI Tools)
 ```
 
-### Detail Komponen & Container (Semuanya Wajib):
-- `superset-app` (aplikasi utama Apache Superset).
-- `superset-init` (kontainer inisialisasi database metadata, admin, & role).
-- `redis` (caching metadata dashboard & chart untuk mempercepat loading).
-- `celery-worker` (prosesor query asinkron di latar belakang).
-- `celery-beat` (scheduler trigger laporan terjadwal otomatis).
-- `postgres` (database untuk metadata internal Superset).
-- `clickhouse-server` (engine database OLAP columnar).
-- `cube-core` (OLAP Cube & semantic layer server terpusat).
-- `peerdb-ui` (antarmuka web manajemen data pipeline visual).
-- `peerdb-server` (core engine transfer data dari OLTP ke ClickHouse).
-- `flow-worker` (pengeksekusi job transfer data).
-- `flow-snapshot` (penanganan inisialisasi dump awal database).
-- `flow-api` (penyedia API untuk integrasi data PeerDB).
-- `minio` (object storage lokal sebagai penampung CSV temporal).
+### Detail Komponen & Container (Fitur Lengkap / Full-Feature):
+
+#### 1. Visualization & Analytics (Apache Superset BI)
+- `superset-app` (Aplikasi utama Apache Superset / Web UI): Container ini melayani antarmuka pengguna berbasis web (Web UI) tempat analis membuat grafik (*charts*) dan dashboard. Ia bertindak sebagai klien penerima kueri SQL Lab dan menyajikan visualisasi data secara interaktif. Secara internal, ia berkomunikasi dengan database metadata untuk otentikasi user dan pengambilan definisi dataset.
+- `superset-init` (Inisialisasi database metadata): Container sekali-jalan (*run-and-exit*) yang bertugas menyalakan skema database, memigrasikan tabel metadata internal, membuat pengguna administratif (*admin*), serta memetakan hak akses peran bawaan (*default roles*) sebelum `superset-app` mulai menerima koneksi.
+
+#### 2. Asynchronous Task & Caching Engine (Celery & Redis)
+- `redis` (Caching & Message Broker): Berperan ganda sebagai media penyimpanan cache memori (untuk menyimpan hasil kueri dashboard guna mempercepat pemuatan berulang) sekaligus sebagai *message broker* (antrean pesan) bagi Celery worker untuk mendelegasikan tugas berat di latar belakang.
+- `celery-worker` (Prosesor Eksekusi Latar Belakang): Mengambil tugas kueri analitis jangka panjang yang dikirim oleh Superset melalui Redis, mengeksekusinya ke ClickHouse secara asinkron, dan menulis hasilnya kembali ke cache. Ini mencegah proses Gunicorn pada `superset-app` mengalami *timeout* atau membuat browser pengguna menggantung (*freeze*).
+- `celery-beat` (Scheduler Terjadwal): Pemicu berkala (*cron-like scheduler*) yang secara otomatis mengirimkan instruksi rendering visualisasi ke Celery worker untuk dikirimkan sebagai laporan terjadwal (melalui Slack atau Email).
+
+#### 3. Semantic Layer (OLAP Cube)
+- `cube-core` (OLAP Cube & Semantic Layer Server): Container ini bertindak sebagai jembatan deklaratif di atas ClickHouse. Ia mendefinisikan skema data logis (*semantic layer*), relasi antar-tabel, dan metrik bisnis terpusat. Ketika Superset (atau BI tool lain seperti Power BI) mengirimkan kueri, Cube.js menerjemahkannya ke SQL ClickHouse yang optimal dan mengelola *pre-aggregations* (tabel agregasi instan di memori/disk) guna meminimalkan latensi kueri.
+
+#### 4. Data Pipeline & CDC Engine (PeerDB & Flow)
+- `peerdb-ui` (Antarmuka Web Data Pipeline): Menyediakan dashboard visual (GUI) bagi insinyur data (*data engineer*) untuk mengonfigurasi replikasi data real-time, mendeteksi tabel sumber, serta memantau status transfer data.
+- `peerdb-server` (Core CDC Engine): Otak replikasi data yang membaca log perubahan transaksi (*Write-Ahead Log / WAL*) dari database transaksional (PostgreSQL OLTP) menggunakan protokol CDC (Change Data Capture) dan menerjemahkannya menjadi instruksi pemuatan data analitis.
+- `flow-worker` (Pengeksekusi Alur Replikasi): Worker asinkron yang melakukan pembacaan log transaksi secara terus-menerus dan menuliskan data perubahan tersebut ke dalam antrean target.
+- `flow-snapshot` (Inisialisasi Awal Data): Container khusus untuk memigrasikan seluruh isi data historis lama secara massal (*bulk copy*) dari database transaksional pada proses inisiasi pertama kali.
+- `flow-api` (Gateway API Integrasi): Menyediakan titik akhir REST API untuk memicu, menghentikan, atau mengaudit status pekerjaan replikasi data secara programmatic.
+
+#### 5. Databases & Staging Storage
+- `postgres` (Database Metadata Superset): Database relasional transaksional yang menyimpan seluruh konfigurasi internal Apache Superset seperti kredensial user, definisi dashboard, tata letak grafik, hak akses RBAC, dan metadata dataset.
+- `clickhouse-server` (Engine Database OLAP Analitis): Core columnar database yang menyimpan data hasil replikasi dalam bentuk tabel-tabel pipih (*flat tables*). ClickHouse sangat efisien dalam memproses kueri agregasi analitis skala besar di tingkat kolom secara paralel.
+- `minio` (Object Storage Lokal): Berperan sebagai penyimpanan perantara (*staging storage*). PeerDB mengekspor data transaksi dari Postgres OLTP ke format CSV terkompresi di MinIO terlebih dahulu sebelum ClickHouse melakukan kueri `COPY` massal, yang jauh lebih cepat dibandingkan menyisipkan baris per baris secara berulang.
 
 ### Kelebihan & Justifikasi:
 * **Single Source of Truth**: Semantic layer terpusat di Cube.js membantu menjaga agar definisi metrik dan label kolom tetap konsisten meskipun diakses dari berbagai BI tools (Superset, Power BI, Tableau).
 * **ETL Mudah Dikelola**: Proses pemindahan data dari OLTP ke OLAP terpantau penuh melalui antarmuka web GUI PeerDB.
 * **Performa Tinggi**: Query analitis dapat dieksekusi dengan latensi rendah berkat optimasi columnar database ClickHouse dan pre-aggregations Cube.js.
+* **Solusi CDC & Volume Data Masif**: Sangat direkomendasikan jika terdapat kebutuhan **CDC (Change Data Capture) semi-instan** guna menyinkronkan data transaksional bervolume masif dari database OLTP ke database OLAP ClickHouse secara cepat tanpa membebani performa database transaksional utama.
+* **Solusi Comprehensive Terintegrasi**: Menjadi pilihan terbaik jika organisasi **belum memiliki infrastruktur BI, ETL pipeline, maupun sistem CDC** yang sudah terpasang (*inplace*) sebelumnya, sehingga memerlukan solusi arsitektur lengkap yang siap pakai dan saling terintegrasi dari pengumpulan hingga visualisasi data.
 
 ### Kekurangan & Tantangan Operasional:
 * **Kerentanan Lonjakan Resource (Spikes)**: Pemakaian RAM dasar sebenarnya tidak terlalu besar, namun rawan kehabisan resource RAM & CPU secara ekstrem pada spesifikasi device lokal (seperti Intel i3-1115G4 dan RAM 8GB) ketika terjadi aktivitas bersamaan (proses ETL sinkronisasi berjalan saat user memuat dashboard).
@@ -85,15 +97,14 @@ Konsep ini memangkas komponen sekunder demi kesederhanaan dan efisiensi resource
 
 ### Detail Komponen & Container:
 
-#### A. Container Utama (Wajib)
-- `superset-app` (aplikasi Apache Superset, menggunakan SQLite `.db` lokal untuk metadata).
-- `clickhouse-server` (engine database OLAP columnar).
+#### A. Container Utama (Wajib / Core Minimalist)
+* **Visualization:** `superset-app` (Aplikasi Utama Apache Superset): Container server visualisasi yang dikonfigurasi menggunakan SQLite database (`.db` berbasis file lokal) untuk menyimpan seluruh metadatanya. Semua proses rendering chart dan eksekusi kueri ke ClickHouse ditangani langsung secara sinkron (*synchronous*) oleh web server Gunicorn di dalam container ini.
+* **Database OLAP:** `clickhouse-server` (Engine Database Columnar): Menyimpan data terstruktur untuk kueri analitis cepat. Superset terhubung langsung ke port SQL ClickHouse untuk menarik data visualisasi secara real-time tanpa perantara semantic layer.
 
-#### B. Container Pendukung (Opsional)
-- `postgres` (database untuk metadata internal Superset mengganti SQLite, mengatasi isu konkurensi).
-- `redis` (caching metadata dashboard & chart).
-- `celery-worker` (worker query asinkron untuk mencegah UI freeze).
-- `celery-beat` (scheduler trigger laporan terjadwal otomatis).
+#### B. Container Pendukung (Opsional - Alur Scale-Up Bertahap)
+* **Database Metadata:** `postgres` (Pengganti SQLite): Container database relasional untuk menyimpan konfigurasi metadata Superset secara terpusat guna menghindari error penguncian berkas (*file locking*) saat diakses beberapa pengguna secara bersamaan.
+* **Caching & Message Broker:** `redis` (Cache & Broker): Menyimpan hasil kueri visualisasi sebelumnya secara temporal untuk memangkas kueri berulang ke ClickHouse serta mengatur antrean task.
+* **Asynchronous Workers:** `celery-worker` & `celery-beat` (Pemroses Latar Belakang & Scheduler): Bertanggung jawab memproses kueri SQL Lab yang membutuhkan waktu lama agar tidak memblokir antarmuka pengguna serta menangani pengiriman laporan terjadwal.
 
 ### Kelebihan & Justifikasi:
 * **Sangat Ringan**: Mengonsumsi resource CPU & RAM yang minim. Cenderung lebih stabil berjalan di lingkungan dengan spesifikasi terbatas maupun untuk kebutuhan testing.
@@ -118,11 +129,59 @@ Perbandingan komprehensif aspek teknis dan operasional antara Konsep 1 dan Konse
 | **Stabilitas Konkurensi** | **Tinggi**<br>Metadata menggunakan PostgreSQL dan dilindungi cache Redis. | **Rendah**<br>SQLite rentan "Database Locked" jika diakses bersamaan. |
 | **Kemudahan Pipeline ETL** | **Mudah (No-Code UI)**<br>Menggunakan panel GUI PeerDB untuk CDC otomatis. | **Manual**<br>Membutuhkan script ETL Python/SQL untuk memindahkan data. |
 | **Penyimpanan Disk** | **Rawan Bengkak**<br>Butuh penanganan berkala terhadap file staging MinIO & Cube. | **Sangat Hemat**<br>Hanya database ClickHouse terkompresi & metadata mini. |
-| **Rekomendasi Lingkungan Deployment** | Server Produksi / VM Dedicated (RAM minimal 16GB). | Device lokal / tim kecil (RAM 8GB relatif mencukupi). |
+| **Rekomendasi Lingkungan Deployment** | **Server Linux Produksi / Kubernetes (K8s)**<br>(Direkomendasikan dengan RAM dedicated ≥16GB untuk stabilitas CDC & BI terpadu). | **Fase PoC / Uji Batas Lokal / VM Tim Kecil**<br>(Cocok untuk uji batas ketahanan pada resource terbatas seperti RAM 8GB). |
 
 ---
 
-## 5. Perbandingan: Apache Superset vs Power BI Desktop
+## 5. Estimasi Kebutuhan Resource per Container
+
+> **Catatan**: Estimasi berikut bersumber dari dokumentasi resmi dan diskusi komunitas (GitHub Issues, forum ClickHouse, Apache Superset). Nilai aktual dapat berbeda tergantung volume data, kompleksitas kueri, dan jumlah pengguna aktif. Angka-angka ini bersifat indikatif sebagai acuan perencanaan kapasitas — untuk mendapatkan angka yang lebih akurat sesuai kondisi spesifik, diperlukan pengujian lebih lanjut (misalnya monitoring resource saat beban nyata).
+
+### Konsep 1 – Enterprise Full-Stack (14 Container)
+
+| Container | Kategori Beban | Estimasi RAM Idle | Kondisi Saat Aktif |
+| :--- | :--- | :--- | :--- |
+| `superset-app` | Sedang | ~300–500 MB | Naik hingga ~800 MB–1.5 GB saat banyak user aktif bersamaan |
+| `superset-init` | Sangat Ringan | ~50–100 MB | Hanya berjalan sekali saat inisialisasi, lalu berhenti otomatis |
+| `redis` | Sangat Ringan | ~30–50 MB | Naik sesuai jumlah hasil cache chart yang tersimpan |
+| `celery-worker` | Ringan–Sedang | ~200–400 MB | Naik saat memproses kueri berat atau rendering laporan terjadwal |
+| `celery-beat` | Sangat Ringan | ~50–100 MB | Hampir konstan, hanya mengirimkan trigger jadwal |
+| `cube-core` | Sedang | ~300–600 MB | Naik saat menghitung *pre-aggregations* baru ke database |
+| `peerdb-ui` | Ringan | ~100–200 MB | Relatif konstan sebagai UI monitoring pipeline |
+| `peerdb-server` | Sedang | ~200–400 MB | Naik saat CDC aktif mereplikasi perubahan data dari OLTP |
+| `flow-worker` | Sedang | ~200–500 MB | Naik signifikan saat proses sinkronisasi data berjalan |
+| `flow-snapshot` | Berat (Sesaat) | ~500 MB–1 GB | Aktif saat dump awal data historis, lalu berhenti otomatis |
+| `flow-api` | Ringan | ~100–150 MB | Relatif konstan sebagai gateway REST API |
+| `postgres` | Sangat Ringan | ~50–100 MB | Hanya menyimpan metadata Superset, tidak bertumbuh besar |
+| `clickhouse-server` | Sedang–Tinggi | ~500 MB–1 GB | Naik hingga 2–4 GB saat kueri analitis besar aktif dijalankan |
+| `minio` | Ringan | ~100–200 MB | Naik saat ada file CSV *staging* yang sedang ditulis PeerDB |
+
+**Estimasi Total RAM Idle Konsep 1:** ~2.5–4.5 GB (sebelum ada beban query/ETL aktif)
+
+> ⚠️ Pada spesifikasi RAM 8 GB, penggunaan idle Konsep 1 sudah mengonsumsi lebih dari separuh kapasitas RAM — menyisakan sedikit ruang untuk sistem operasi dan aktivitas lainnya. Risiko lonjakan resource (*spike*) menjadi lebih tinggi ketika ETL dan query analitis berjalan bersamaan.
+
+---
+
+### Konsep 2 – Minimalist Setup (2–6 Container)
+
+| Container | Kategori Beban | Estimasi RAM Idle | Kondisi Saat Aktif |
+| :--- | :--- | :--- | :--- |
+| `superset-app` | Sedang | ~300–500 MB | Naik saat banyak user menjalankan query dashboard bersamaan |
+| `clickhouse-server` | Sedang–Tinggi | ~500 MB–1 GB | Naik hingga 2–4 GB saat query analitis besar aktif |
+| `postgres` | Sangat Ringan | ~50–100 MB | Relatif konstan, hanya metadata konfigurasi Superset |
+| `redis` | Sangat Ringan | ~30–50 MB | Naik sesuai jumlah cache chart yang tersimpan |
+| `celery-worker` | Ringan–Sedang | ~200–400 MB | Naik saat ada laporan terjadwal atau kueri latar belakang |
+| `celery-beat` | Sangat Ringan | ~50–100 MB | Hampir konstan, hanya mengirimkan trigger jadwal |
+
+**Estimasi Total RAM Idle Konsep 2 (Hanya Wajib):** ~800 MB–1.5 GB
+
+**Estimasi Total RAM Idle Konsep 2 (Dengan Semua Pendukung):** ~1.2–2.1 GB
+
+> ✅ Pada spesifikasi RAM 8 GB, Konsep 2 bahkan dengan semua container pendukung aktif cenderung masih menyisakan ruang RAM yang cukup nyaman untuk sistem operasi dan aktivitas lainnya.
+
+---
+
+## 6. Perbandingan: Apache Superset vs Power BI Desktop
 Berikut adalah analisis komprehensif antara **Apache Superset** dan **Microsoft Power BI Desktop** untuk kebutuhan visualisasi data analitis dari sumber data (source):
 
 | Kriteria Evaluasi | Apache Superset | Power BI Desktop |
@@ -148,8 +207,29 @@ Berikut adalah analisis komprehensif antara **Apache Superset** dan **Microsoft 
 
 ---
 
-## 6. Rekomendasi & Solusi Jalan Tengah (Rekomendasi Kenyataan)
-Untuk mendapatkan arsitektur yang **ringan** tetapi tetap **stabil, aman, dan fungsional**, disarankan untuk menerapkan perbaikan kritis pada arsitektur Konsep 2 sebagai berikut:
+## 7. Rekomendasi Final
+
+Berdasarkan analisis arsitektur, estimasi resource, dan kondisi infrastruktur yang dievaluasi, bagian ini merangkum keputusan teknis serta pilihan arsitektur yang disarankan.
+
+> 💡 **Catatan Penting Konten Pengujian:** Spesifikasi hardware laptop yang minim (RAM 8 GB, Intel i3) **hanya digunakan untuk menguji batas ketahanan (stress test/boundary testing)** sistem pada kondisi resource yang sangat terbatas. Konteks ini **bukanlah target implementasi produksi final**. Untuk deployment produksi di masa mendatang, sistem pasti akan dijalankan pada **server Linux menggunakan Docker CLI atau diorkestrasikan melalui Kubernetes (K8s)** dengan alokasi resource penuh.
+
+---
+
+### A. Mengapa Konsep 1 Tidak Diprioritaskan untuk Tahap Pengujian Batas (PoC) Ini
+
+Konsep 1 (Enterprise Full-Stack) dirancang untuk lingkungan produksi skala besar. Selama fase pengujian PoC di lingkungan lokal yang dibatasi (RAM 8 GB, i3):
+
+* **Tujuan Pengujian Batas:** Pengujian sengaja menggunakan hardware berspesifikasi minim untuk memetakan batasan kritis. Konsep 1 dengan 14 container (estimasi idle RAM ~2.5–4.5 GB) terbukti memicu crash akibat lonjakan resource saat proses ETL CDC (PeerDB) dan query analitis berjalan bersamaan.
+* **Relevansi Produksi:** Meskipun berat untuk laptop testing, **Konsep 1 merupakan arsitektur target utama (recommended)** ketika dideploy ke infrastruktur server Linux produksi sesungguhnya menggunakan Docker CLI atau Kubernetes, di mana resource hardware dedicated tersedia secara melimpah dan isolasi container terjamin.
+* **Kapasitas Operasional:** Arsitektur 14 container ini membutuhkan tim ops untuk monitoring pipeline CDC, pre-aggregations Cube.js, dan queue Celery secara berkelanjutan di cluster Kubernetes.
+
+> 💡 **Konsep 1 tetap relevan sebagai target arsitektur jangka panjang** ketika tahap implementasi final dilakukan ke Linux server dengan Docker CLI / Kubernetes.
+
+---
+
+### B. Rekomendasi Langkah Awal: Konsep 2 yang Dioptimalkan (Solusi Hybrid untuk Fase PoC / Uji Batas)
+
+Untuk kelancaran fase pengujian PoC di device dengan resource terbatas ini, disarankan menggunakan **Konsep 2 dengan penambahan komponen kritis**. Pendekatan ini menjaga sistem tetap ringan namun menghindari kelemahan fatal SQLite.
 
 ```
                   ┌──────────────────────────────────────────────┐
@@ -165,19 +245,19 @@ Untuk mendapatkan arsitektur yang **ringan** tetapi tetap **stabil, aman, dan fu
 └───────────────────────┘      └──────────────────┘      └────────────────────────┘
 ```
 
-### A. Migrasi Metadata Superset ke PostgreSQL (Menggantikan SQLite)
+#### B.1 Migrasi Metadata Superset ke PostgreSQL (Menggantikan SQLite)
 * **Solusi**: Mengganti SQLite database bawaan Superset dengan PostgreSQL (cukup menambah 1 container database kecil atau mengarah ke database Postgres yang ada).
 * **Manfaat**:
   - **Mengurangi Risiko Database Locked**: PostgreSQL menangani konkurensi tinggi dengan lebih baik. Banyak user dapat mengedit dashboard secara bersamaan dengan risiko hambatan konkurensi yang minim.
   - **Keamanan Data**: Menggunakan mekanisme WAL (Write-Ahead Logging) yang membantu meminimalkan risiko kerusakan data metadata (korup) apabila terjadi crash sistem mendadak.
-  - **Siap Scale-Up**: Postgres dapat menjadi basis fondasi jika di kemudian hari ingin mengaktifkan caching (Redis) dan query asinkron (Celery).
+  - **Kemudahan Migrasi ke Produksi**: Basis database metadata PostgreSQL ini akan mempermudah tim saat memindahkan seluruh konfigurasi dasbor ke server produksi Linux (baik via Docker Compose maupun Kubernetes manifests).
 
-### B. Optimalisasi Labeling & Metadata di Dataset Superset (Pengganti Cube.js)
+#### B.2 Optimalisasi Labeling & Metadata di Dataset Superset (Pengganti Cube.js)
 Karena Cube.js dibuang untuk menghemat resource, standarisasi data dipindahkan langsung ke dalam pengaturan Dataset di Superset:
 * **Labeling Kolom (Human-Readable)**: Ubah nama kolom teknis database yang kaku (misal: `dtl_tr_id` atau `hdr_cust_name`) menjadi nama yang ramah pengguna (misal: `"ID Detail Transaksi"` atau `"Nama Pelanggan"`). Pengguna tinggal melakukan drag-and-drop kolom yang sudah rapi ini.
 * **Penguncian Format Tanggal (Datetime Format)**: Kunci format tanggal di tingkat dataset (misal: `YYYY-MM-DD HH:mm:ss`) agar pengguna tidak perlu memformat tanggal secara manual setiap kali membuat chart baru.
 * **Calculated Columns (Kolom Kalkulasi)**: Tulis rumus kalkulasi bisnis sederhana menggunakan sintaks SQL ClickHouse (misal: `harga * jumlah * (1 - diskon)`) sekali saja di tingkat dataset. Kolom ini otomatis muncul dan siap pakai oleh siapapun.
 
-### C. Manajemen Data ClickHouse (Memitigasi Karakteristik Columnar)
+#### B.3 Manajemen Data ClickHouse (Memitigasi Karakteristik Columnar)
 * **Operasi DML (Update/Delete) via ReplacingMergeTree**: ClickHouse adalah columnar database yang didesain untuk operasi *insert* cepat dan bersifat *append-only*. Jika data OLTP (Postgres) sering mengalami perubahan status (update/delete), gunakan engine tabel **`ReplacingMergeTree`** di ClickHouse. Engine ini akan menyaring data lama dan menyisakan data dengan versi terbaru secara berkala di latar belakang.
 * **Partisi Tabel**: Lakukan partisi tabel ClickHouse secara berkala (misal berdasarkan bulan atau tahun). Partisi yang tepat membantu meminimalkan risiko terjadinya *full scan* data saat rendering dashboard, sehingga query berpotensi berjalan lebih cepat dan menekan risiko timeout.
