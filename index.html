@@ -1,0 +1,1292 @@
+<!DOCTYPE html>
+<html lang="id" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Laporan PoC BI: Evaluasi Apache Superset</title>
+  <!-- Google Fonts Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <style>
+    /* CSS Variables & Theme definitions */
+    :root[data-theme="dark"] {
+      --bg-primary: #0b0f19;
+      --bg-secondary: #111827;
+      --bg-tertiary: #1f2937;
+      --card-bg: #161d30;
+      --card-border: rgba(99, 102, 241, 0.15);
+      --text-primary: #f3f4f6;
+      --text-secondary: #9ca3af;
+      --text-muted: #6b7280;
+      --accent-primary: #6366f1; /* Indigo */
+      --accent-secondary: #ec4899; /* Pink */
+      --accent-blue: #3b82f6;
+      --accent-emerald: #10b981;
+      --accent-amber: #f59e0b;
+      --accent-rose: #ef4444;
+      --sidebar-width: 280px;
+      --header-height: 70px;
+      --shadow: 0 4px 20px 0 rgba(0, 0, 0, 0.3);
+      --glass-bg: rgba(22, 29, 48, 0.8);
+      --glass-blur: blur(12px);
+    }
+
+    :root[data-theme="light"] {
+      --bg-primary: #f9fafb;
+      --bg-secondary: #ffffff;
+      --bg-tertiary: #f3f4f6;
+      --card-bg: #ffffff;
+      --card-border: rgba(79, 70, 229, 0.1);
+      --text-primary: #111827;
+      --text-secondary: #4b5563;
+      --text-muted: #9ca3af;
+      --accent-primary: #4f46e5;
+      --accent-secondary: #db2777;
+      --accent-blue: #2563eb;
+      --accent-emerald: #059669;
+      --accent-amber: #d97706;
+      --accent-rose: #dc2626;
+      --sidebar-width: 280px;
+      --header-height: 70px;
+      --shadow: 0 4px 20px 0 rgba(0, 0, 0, 0.05);
+      --glass-bg: rgba(255, 255, 255, 0.85);
+      --glass-blur: blur(12px);
+    }
+
+    /* Reset & Base Styles */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      scroll-behavior: smooth;
+    }
+
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background-color: var(--bg-primary);
+      color: var(--text-primary);
+      line-height: 1.6;
+      transition: background-color 0.3s ease, color 0.3s ease;
+      display: flex;
+      min-height: 100vh;
+    }
+
+    code {
+      font-family: Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', monospace;
+      font-size: 0.9em;
+      background-color: var(--bg-tertiary);
+      padding: 2px 6px;
+      border-radius: 4px;
+      color: var(--accent-secondary);
+    }
+
+    pre code {
+      display: block;
+      padding: 1rem;
+      overflow-x: auto;
+      color: var(--text-primary);
+      border: 1px solid var(--card-border);
+    }
+
+    /* Layout Components */
+    .sidebar {
+      width: var(--sidebar-width);
+      background-color: var(--bg-secondary);
+      border-right: 1px solid var(--card-border);
+      position: fixed;
+      top: 0;
+      bottom: 0;
+      left: 0;
+      z-index: 100;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 2rem 1.5rem;
+      transition: transform 0.3s ease, background-color 0.3s ease, border-color 0.3s ease;
+    }
+
+    .sidebar-logo {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      font-size: 1.25rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 2rem;
+    }
+
+    .nav-menu {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      flex-grow: 1;
+    }
+
+    .nav-item a {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.75rem 1rem;
+      color: var(--text-secondary);
+      text-decoration: none;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-weight: 500;
+      transition: all 0.2s ease;
+    }
+
+    .nav-item a:hover, .nav-item.active a {
+      color: var(--text-primary);
+      background-color: var(--bg-tertiary);
+      border-left: 4px solid var(--accent-primary);
+    }
+
+    .theme-toggle-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      padding: 0.75rem;
+      border-radius: 8px;
+      border: 1px solid var(--card-border);
+      background-color: var(--bg-tertiary);
+      color: var(--text-primary);
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 0.9rem;
+      transition: all 0.2s ease;
+    }
+
+    .theme-toggle-btn:hover {
+      border-color: var(--accent-primary);
+      box-shadow: 0 0 10px rgba(99, 102, 241, 0.2);
+    }
+
+    /* Main Content Area */
+    .main-wrapper {
+      margin-left: var(--sidebar-width);
+      flex-grow: 1;
+      padding: 2rem 3rem;
+      max-width: 1200px;
+      transition: margin-left 0.3s ease;
+      min-width: 0; /* Prevents parent flexbox stretching */
+    }
+
+    header {
+      margin-bottom: 3rem;
+      border-bottom: 1px solid var(--card-border);
+      padding-bottom: 1.5rem;
+    }
+
+    .header-badge {
+      display: inline-block;
+      padding: 0.25rem 0.75rem;
+      background: linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(236, 72, 153, 0.15));
+      border: 1px solid var(--card-border);
+      border-radius: 50px;
+      color: var(--accent-primary);
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 1rem;
+    }
+
+    h1 {
+      font-size: 2.5rem;
+      font-weight: 800;
+      margin-bottom: 0.5rem;
+      letter-spacing: -0.02em;
+      background: linear-gradient(135deg, var(--text-primary) 50%, var(--accent-primary));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .subtitle {
+      color: var(--text-secondary);
+      font-size: 1.1rem;
+      margin-bottom: 1rem;
+    }
+
+    .meta-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1.5rem;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    .meta-item {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .meta-item svg {
+      width: 16px;
+      height: 16px;
+      fill: currentColor;
+    }
+
+    /* Typography & Sections */
+    section {
+      margin-bottom: 4rem;
+      scroll-margin-top: 2rem;
+    }
+
+    h2 {
+      font-size: 1.8rem;
+      font-weight: 700;
+      margin-bottom: 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      border-left: 5px solid var(--accent-primary);
+      padding-left: 0.75rem;
+    }
+
+    h3 {
+      font-size: 1.3rem;
+      font-weight: 600;
+      margin-top: 1.5rem;
+      margin-bottom: 1rem;
+      color: var(--text-primary);
+    }
+
+    p {
+      color: var(--text-secondary);
+      margin-bottom: 1.25rem;
+      font-size: 1rem;
+    }
+
+    /* Cards System */
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    .card {
+      background-color: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      box-shadow: var(--shadow);
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .card:hover {
+      transform: translateY(-4px);
+      border-color: var(--accent-primary);
+      box-shadow: 0 10px 30px rgba(99, 102, 241, 0.1);
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+      font-weight: 700;
+      font-size: 1.1rem;
+    }
+
+    .card-icon {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      background-color: rgba(99, 102, 241, 0.1);
+      color: var(--accent-primary);
+    }
+
+    .card ul {
+      list-style-type: none;
+      padding-left: 0;
+    }
+
+    .card li {
+      position: relative;
+      padding-left: 1.5rem;
+      margin-bottom: 0.75rem;
+      font-size: 0.95rem;
+      color: var(--text-secondary);
+    }
+
+    .card li::before {
+      content: "•";
+      color: var(--accent-primary);
+      font-weight: bold;
+      font-size: 1.25rem;
+      position: absolute;
+      left: 0.5rem;
+      top: -0.15rem;
+    }
+
+    /* Alert / Warning Boxes */
+    .alert-box {
+      background: linear-gradient(135deg, rgba(245, 158, 11, 0.08), rgba(239, 68, 68, 0.08));
+      border: 1px solid rgba(245, 158, 11, 0.25);
+      border-left: 4px solid var(--accent-amber);
+      border-radius: 8px;
+      padding: 1.25rem 1.5rem;
+      margin: 1.5rem 0;
+      color: var(--text-secondary);
+    }
+
+    .alert-box-header {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-bottom: 0.5rem;
+    }
+
+    /* Comparison Tabs */
+    .tab-container {
+      background-color: var(--bg-secondary);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      overflow: hidden;
+      margin-bottom: 2.5rem;
+      box-shadow: var(--shadow);
+    }
+
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid var(--card-border);
+      background-color: var(--bg-tertiary);
+    }
+
+    .tab-btn {
+      flex: 1;
+      padding: 1rem;
+      border: none;
+      background: none;
+      color: var(--text-secondary);
+      font-weight: 600;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      outline: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+    }
+
+    .tab-btn:hover {
+      color: var(--text-primary);
+      background-color: rgba(99, 102, 241, 0.05);
+    }
+
+    .tab-btn.active {
+      color: var(--accent-primary);
+      border-bottom: 3px solid var(--accent-primary);
+      background-color: var(--bg-secondary);
+    }
+
+    .tab-content {
+      padding: 2rem;
+      display: none;
+      animation: fadeIn 0.4s ease;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Diagrams & Architecture Flows */
+    .flow-diagram {
+      background-color: var(--bg-tertiary);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 1.5rem 0;
+      margin: 1.5rem 0;
+      overflow-x: auto;
+      width: 100%;
+      max-width: 100%;
+      text-align: center;
+    }
+
+    .flow-row {
+      display: inline-flex;
+      align-items: center;
+      gap: 1.25rem;
+      padding: 0.5rem 1.5rem;
+      min-width: max-content;
+      text-align: left;
+    }
+
+    .flow-node {
+      background-color: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 6px;
+      padding: 0.75rem 1rem;
+      text-align: center;
+      font-weight: 600;
+      min-width: 140px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      font-size: 0.9rem;
+      position: relative;
+    }
+
+    .flow-node.highlight {
+      border-color: var(--accent-primary);
+      box-shadow: 0 0 10px rgba(99, 102, 241, 0.2);
+    }
+
+    .flow-arrow {
+      color: var(--text-muted);
+      font-size: 1.2rem;
+      font-weight: bold;
+    }
+
+    .flow-label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      display: block;
+      margin-top: 0.25rem;
+      font-weight: 400;
+    }
+
+    /* Comparison Matrix Table */
+    .table-container {
+      overflow-x: auto;
+      margin: 2rem 0;
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      box-shadow: var(--shadow);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background-color: var(--bg-secondary);
+      text-align: left;
+      font-size: 0.95rem;
+    }
+
+    th {
+      background-color: var(--bg-tertiary);
+      color: var(--text-primary);
+      padding: 1rem;
+      font-weight: 700;
+      border-bottom: 2px solid var(--card-border);
+    }
+
+    td {
+      padding: 1rem;
+      color: var(--text-secondary);
+      border-bottom: 1px solid var(--card-border);
+      vertical-align: top;
+    }
+
+    tr:hover td {
+      background-color: rgba(99, 102, 241, 0.02);
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 0.15rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+
+    .badge-heavy {
+      background-color: rgba(239, 68, 68, 0.15);
+      color: var(--accent-rose);
+      border: 1px solid rgba(239, 68, 68, 0.25);
+    }
+
+    .badge-light {
+      background-color: rgba(16, 185, 129, 0.15);
+      color: var(--accent-emerald);
+      border: 1px solid rgba(16, 185, 129, 0.25);
+    }
+
+    .badge-medium {
+      background-color: rgba(245, 158, 11, 0.15);
+      color: var(--accent-amber);
+      border: 1px solid rgba(245, 158, 11, 0.25);
+    }
+
+    /* Mobile Nav Burger Menu Toggle */
+    .mobile-header {
+      display: none;
+      height: var(--header-height);
+      background-color: var(--bg-secondary);
+      border-bottom: 1px solid var(--card-border);
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 1.5rem;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 101;
+    }
+
+    .menu-toggle {
+      background: none;
+      border: none;
+      color: var(--text-primary);
+      cursor: pointer;
+      padding: 0.5rem;
+      display: flex;
+      align-items: center;
+    }
+
+    /* Responsive Styles */
+    @media (max-width: 1024px) {
+      .sidebar {
+        transform: translateX(-100%);
+      }
+      .sidebar.open {
+        transform: translateX(0);
+      }
+      .main-wrapper {
+        margin-left: 0;
+        padding: 5rem 1.5rem 2rem 1.5rem;
+      }
+      .mobile-header {
+        display: flex;
+      }
+    }
+
+    /* Print styling */
+    @media print {
+      body {
+        background: white !important;
+        color: black !important;
+      }
+      .sidebar, .mobile-header, .theme-toggle-btn {
+        display: none !important;
+      }
+      .main-wrapper {
+        margin-left: 0 !important;
+        padding: 0 !important;
+        max-width: 100% !important;
+      }
+      .card {
+        page-break-inside: avoid;
+        border: 1px solid #ddd !important;
+        background: transparent !important;
+        box-shadow: none !important;
+      }
+      .tab-content {
+        display: block !important;
+        opacity: 1 !important;
+        transform: none !important;
+        page-break-before: always;
+      }
+      .tabs {
+        display: none !important;
+      }
+      h1, h2, h3 {
+        color: black !important;
+        background: none !important;
+        -webkit-text-fill-color: initial !important;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Mobile Header -->
+  <div class="mobile-header">
+    <div class="sidebar-logo" style="margin-bottom: 0;">
+      <svg style="width: 24px; height: 24px; fill: var(--accent-primary);" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-2 10h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/></svg>
+      PoC BI: Apache Superset
+    </div>
+    <button class="menu-toggle" id="menuToggle" aria-label="Toggle Menu">
+      <svg style="width: 28px; height: 28px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+    </button>
+  </div>
+
+  <!-- Sidebar Navigation -->
+  <aside class="sidebar" id="sidebar">
+    <div>
+      <div class="sidebar-logo">
+        <svg style="width: 28px; height: 28px; fill: var(--accent-primary);" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-2 10h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/></svg>
+        <span>PoC BI</span>
+      </div>
+      <ul class="nav-menu">
+        <li class="nav-item active"><a href="#pendahuluan">1. Pendahuluan</a></li>
+        <li class="nav-item"><a href="#konsep1">2. Konsep 1 (Enterprise)</a></li>
+        <li class="nav-item"><a href="#konsep2">3. Konsep 2 (Minimalis)</a></li>
+        <li class="nav-item"><a href="#perbandingan">4. Matriks Perbandingan</a></li>
+        <li class="nav-item"><a href="#superset-vs-powerbi">5. Superset vs Power BI</a></li>
+        <li class="nav-item"><a href="#rekomendasi">6. Rekomendasi & Solusi</a></li>
+      </ul>
+    </div>
+    
+    <button class="theme-toggle-btn" id="themeToggle">
+      <svg id="themeIcon" style="width: 20px; height: 20px; fill: currentColor;" viewBox="0 0 24 24"><path d="M12 3c.132 0 .263 0 .393.007a7.5 7.5 0 0 0 7.92 12.446A9 9 0 1 1 12 2.992z"/></svg>
+      <span id="themeText">Dark Mode</span>
+    </button>
+  </aside>
+
+  <!-- Main Content Wrapper -->
+  <div class="main-wrapper">
+    <header>
+      <span class="header-badge">Evaluasi Infrastruktur Data</span>
+      <h1>Laporan PoC BI: Evaluasi Apache Superset</h1>
+      <p class="subtitle">Analisis Operasional Infrastruktur, Keamanan, Manajemen Storage, dan Rekomendasi Optimasi Praktis</p>
+      
+      <div class="meta-grid">
+        <div class="meta-item">
+          <svg viewBox="0 0 24 24"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11z"/></svg>
+          <span>11 Juni 2026</span>
+        </div>
+        <div class="meta-item">
+          <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
+          <span>Status: Evaluasi Selesai</span>
+        </div>
+        <div class="meta-item">
+          <svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+          <span>Penulis: Analis Antigravity</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Section 1: Pendahuluan -->
+    <section id="pendahuluan">
+      <h2>1. Pendahuluan: Apache Superset</h2>
+      <p>
+        <strong>Apache Superset</strong> adalah platform visualisasi data modern, cepat, dan tangguh yang digunakan untuk menampilkan data mentah maupun data olahan dalam bentuk dashboard dan grafik interaktif. Dengan dukungan konektivitas database yang luas melalui SQLAlchemy, Superset menjadi pilihan utama untuk operasional Business Intelligence (BI) yang fleksibel.
+      </p>
+
+      <div class="card-grid">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-icon">
+              <svg style="width: 20px; height: 20px; fill: currentColor;" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm2.07-7.75l-.9.92C13.45 12.9 13 13.5 13 15h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H7c0-2.76 2.24-5 5-5s5 2.24 5 5c0 1.04-.42 1.99-1.07 2.75z"/></svg>
+            </div>
+            <span>Eksplorasi & Query Data</span>
+          </div>
+          <ul>
+            <li><strong>SQL Lab:</strong> IDE query interaktif untuk merancang query SQL mentah langsung ke database.</li>
+            <li><strong>Query to Dataset:</strong> Mengubah hasil analisis SQL Lab secara langsung menjadi dataset siap pakai.</li>
+            <li><strong>Upload Data CSV:</strong> Kemampuan import file data lokal langsung ke penyimpanan database yang terkoneksi.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div class="card-icon">
+              <svg style="width: 20px; height: 20px; fill: currentColor;" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+            </div>
+            <span>Akses & Pembagian Kolaborasi</span>
+          </div>
+          <ul>
+            <li><strong>Keamanan Granular:</strong> Pembagian dashboard, chart, dataset, dan koneksi berdasarkan User, Role, maupun Group.</li>
+            <li><strong>Embedding & Sharing:</strong> Export chart menjadi embeddable iframe serta berbagi tautan dashboard berizin khusus.</li>
+            <li><strong>Export Format:</strong> Mengunduh data hasil visualisasi ke CSV/Excel dan dashboard/chart utuh menjadi Image (PNG) atau PDF.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 2 & 3: Tabs Container for Concept 1 & 2 -->
+    <section id="konsep-arsitektur">
+      <h2>Pilihan Konsep Arsitektur</h2>
+      <p>Berikut adalah dua rancangan konsep arsitektur yang dievaluasi untuk penerapan lokal (WSL / Komputer Pengembang) maupun deployment di server produksi.</p>
+      
+      <div class="tab-container">
+        <div class="tabs">
+          <button class="tab-btn active" onclick="switchTab(event, 'tab-konsep1')">
+            <svg style="width: 20px; height: 20px; fill: currentColor;" viewBox="0 0 24 24"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H8V4h12v12z"/></svg>
+            Konsep 1: Enterprise Full-Stack
+          </button>
+          <button class="tab-btn" onclick="switchTab(event, 'tab-konsep2')">
+            <svg style="width: 20px; height: 20px; fill: currentColor;" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14z"/></svg>
+            Konsep 2: Minimalist Setup
+          </button>
+        </div>
+
+        <!-- Konsep 1 Content -->
+        <div id="tab-konsep1" class="tab-content active">
+          <div class="header-badge" style="background: rgba(239, 68, 68, 0.1); color: var(--accent-rose); border-color: rgba(239, 68, 68, 0.2);">Heavyweight Architecture</div>
+          <h3>2. Konsep 1: Enterprise Full-Stack (Heavyweight)</h3>
+          <p>
+            Konsep 1 dirancang untuk ekosistem skala besar dengan kebutuhan sinkronisasi otomatis CDC (<em>Change Data Capture</em>), <em>semantic layer</em> tersentralisasi, dan caching asinkron.
+          </p>
+
+          <div class="flow-diagram">
+            <strong style="display: block; margin-bottom: 1rem;">Data Pipeline & Caching Flow (Konsep 1)</strong>
+            <div class="flow-row">
+              <div class="flow-node">
+                PostgreSQL (OLTP)
+                <span class="flow-label">Sumber Transaksional</span>
+              </div>
+              <div class="flow-arrow">➔</div>
+              <div class="flow-node highlight">
+                PeerDB (ETL/CDC)
+                <span class="flow-label">Staging via MinIO</span>
+              </div>
+              <div class="flow-arrow">➔</div>
+              <div class="flow-node">
+                ClickHouse
+                <span class="flow-label">OLAP Store</span>
+              </div>
+              <div class="flow-arrow">➔</div>
+              <div class="flow-node highlight">
+                Cube.js
+                <span class="flow-label">Semantic Layer</span>
+              </div>
+              <div class="flow-arrow">➔</div>
+              <div class="flow-node">
+                Superset (BI)
+                <span class="flow-label">Celery + Redis Cache</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="card-grid">
+            <div class="card">
+              <div class="card-header" style="color: var(--accent-emerald);">
+                <span style="font-size: 1.25rem;">✓</span> Kelebihan & Justifikasi
+              </div>
+              <ul>
+                <li><strong>Multi-BI Compatibility:</strong> Adanya Cube.js sebagai <em>global semantic layer</em> membantu agar definisi labeling data dan logika metrik terpusat dapat diakses bersamaan oleh Superset, PowerBI, Tableau, dll.</li>
+                <li><strong>Otomatisasi CDC:</strong> PeerDB mempermudah sinkronisasi data dari database utama (OLTP) ke database analitis (OLAP ClickHouse) secara visual dengan minim penulisan kode ETL manual.</li>
+                <li><strong>Caching yang Kuat:</strong> Redis dan Celery menangani query secara asinkron untuk membantu mengurangi risiko UI Superset mengalami hambatan/freeze.</li>
+              </ul>
+            </div>
+
+            <div class="card">
+              <div class="card-header" style="color: var(--accent-rose);">
+                <span style="font-size: 1.25rem;">✗</span> Kekurangan & Tantangan
+              </div>
+              <ul>
+                <li><strong>Kerentanan Lonjakan Resource (Spikes):</strong> Pemakaian RAM dasar sebenarnya tidak terlalu besar, namun rawan kehabisan resource RAM & CPU secara ekstrem pada spesifikasi device lokal (seperti Intel i3-1115G4 dan RAM 8GB) ketika terjadi aktivitas bersamaan (proses ETL sinkronisasi berjalan saat user memuat dashboard).</li>
+                <li><strong>Beban I/O Disk Tinggi:</strong> Pre-aggregations Cube.js memerlukan penyimpanan hasil agregasi ke database, meningkatkan operasi baca-tulis disk secara intensif.</li>
+                <li><strong>Kompleksitas Pemeliharaan (Moving Parts):</strong> Banyaknya modul independen yang berjalan bersamaan (caching, queue, semantic layer, ETL) meningkatkan potensi kegagalan sistem dan membutuhkan monitoring yang ketat.</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="card" style="margin-top: 2.5rem;">
+            <div class="card-header" style="color: var(--accent-primary);">
+              <div class="card-icon" style="background-color: rgba(99, 102, 241, 0.1); color: var(--accent-primary);">
+                <svg style="width: 20px; height: 20px; fill: currentColor;" viewBox="0 0 24 24"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H8V4h12v12z"/></svg>
+              </div>
+              <span>Daftar Container Docker - Konsep 1 (Semuanya Wajib)</span>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 1rem; margin-top: 1rem;">
+              <div style="background: var(--bg-tertiary); padding: 0.75rem 1rem; border-radius: 8px; border: 1px solid var(--card-border); display: flex; flex-direction: column; justify-content: center;">
+                <code style="align-self: flex-start;">superset-app</code>
+                <span style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">Web UI utama</span>
+              </div>
+              <div style="background: var(--bg-tertiary); padding: 0.75rem 1rem; border-radius: 8px; border: 1px solid var(--card-border); display: flex; flex-direction: column; justify-content: center;">
+                <code style="align-self: flex-start;">superset-init</code>
+                <span style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">Inisialisasi admin & role</span>
+              </div>
+              <div style="background: var(--bg-tertiary); padding: 0.75rem 1rem; border-radius: 8px; border: 1px solid var(--card-border); display: flex; flex-direction: column; justify-content: center;">
+                <code style="align-self: flex-start;">redis</code>
+                <span style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">Cache dashboard & chart</span>
+              </div>
+              <div style="background: var(--bg-tertiary); padding: 0.75rem 1rem; border-radius: 8px; border: 1px solid var(--card-border); display: flex; flex-direction: column; justify-content: center;">
+                <code style="align-self: flex-start;">celery-worker</code>
+                <span style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">Worker eksekutor query asinkron</span>
+              </div>
+              <div style="background: var(--bg-tertiary); padding: 0.75rem 1rem; border-radius: 8px; border: 1px solid var(--card-border); display: flex; flex-direction: column; justify-content: center;">
+                <code style="align-self: flex-start;">celery-beat</code>
+                <span style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">Scheduler trigger laporan berkala</span>
+              </div>
+              <div style="background: var(--bg-tertiary); padding: 0.75rem 1rem; border-radius: 8px; border: 1px solid var(--card-border); display: flex; flex-direction: column; justify-content: center;">
+                <code style="align-self: flex-start;">postgres</code>
+                <span style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">Superset metadata database</span>
+              </div>
+              <div style="background: var(--bg-tertiary); padding: 0.75rem 1rem; border-radius: 8px; border: 1px solid var(--card-border); display: flex; flex-direction: column; justify-content: center;">
+                <code style="align-self: flex-start;">clickhouse-server</code>
+                <span style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">Engine database OLAP analitis</span>
+              </div>
+              <div style="background: var(--bg-tertiary); padding: 0.75rem 1rem; border-radius: 8px; border: 1px solid var(--card-border); display: flex; flex-direction: column; justify-content: center;">
+                <code style="align-self: flex-start;">cube-core</code>
+                <span style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">OLAP Cube & semantic layer</span>
+              </div>
+              <div style="background: var(--bg-tertiary); padding: 0.75rem 1rem; border-radius: 8px; border: 1px solid var(--card-border); display: flex; flex-direction: column; justify-content: center;">
+                <code style="align-self: flex-start;">peerdb-ui</code>
+                <span style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">Web manajemen ETL</span>
+              </div>
+              <div style="background: var(--bg-tertiary); padding: 0.75rem 1rem; border-radius: 8px; border: 1px solid var(--card-border); display: flex; flex-direction: column; justify-content: center;">
+                <code style="align-self: flex-start;">peerdb-server</code>
+                <span style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">Core engine transfer data</span>
+              </div>
+              <div style="background: var(--bg-tertiary); padding: 0.75rem 1rem; border-radius: 8px; border: 1px solid var(--card-border); display: flex; flex-direction: column; justify-content: center;">
+                <code style="align-self: flex-start;">flow-worker</code>
+                <span style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">Pengeksekusi job sinkronisasi</span>
+              </div>
+              <div style="background: var(--bg-tertiary); padding: 0.75rem 1rem; border-radius: 8px; border: 1px solid var(--card-border); display: flex; flex-direction: column; justify-content: center;">
+                <code style="align-self: flex-start;">flow-snapshot</code>
+                <span style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">Dump database awal</span>
+              </div>
+              <div style="background: var(--bg-tertiary); padding: 0.75rem 1rem; border-radius: 8px; border: 1px solid var(--card-border); display: flex; flex-direction: column; justify-content: center;">
+                <code style="align-self: flex-start;">flow-api</code>
+                <span style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">Penyedia API PeerDB</span>
+              </div>
+              <div style="background: var(--bg-tertiary); padding: 0.75rem 1rem; border-radius: 8px; border: 1px solid var(--card-border); display: flex; flex-direction: column; justify-content: center;">
+                <code style="align-self: flex-start;">minio</code>
+                <span style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">Object storage staging CSV</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Konsep 2 Content -->
+        <div id="tab-konsep2" class="tab-content">
+          <div class="header-badge" style="background: rgba(16, 185, 129, 0.1); color: var(--accent-emerald); border-color: rgba(16, 185, 129, 0.2);">Lightweight Architecture</div>
+          <h3>3. Konsep 2: Minimalist Setup (Lightweight)</h3>
+          <p>
+            Konsep 2 memotong seluruh komponen perantara untuk menghadirkan kecepatan setup, efisiensi resource laptop lokal, dan kemudahan pemeliharaan.
+          </p>
+
+          <div class="flow-diagram">
+            <strong style="display: block; margin-bottom: 1rem;">Data Pipeline & Caching Flow (Konsep 2)</strong>
+            <div class="flow-row">
+              <div class="flow-node">
+                Data Source (OLTP)
+              </div>
+              <div class="flow-arrow">➔</div>
+              <div class="flow-node highlight">
+                Custom Script / Python Job
+                <span class="flow-label">Direct Bulk Load</span>
+              </div>
+              <div class="flow-arrow">➔</div>
+              <div class="flow-node">
+                ClickHouse
+                <span class="flow-label">OLAP (Ready Table)</span>
+              </div>
+              <div class="flow-arrow">➔</div>
+              <div class="flow-node highlight">
+                Superset (BI)
+                <span class="flow-label">SQLite Local DB</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="card-grid">
+            <div class="card">
+              <div class="card-header" style="color: var(--accent-emerald);">
+                <span style="font-size: 1.25rem;">✓</span> Kelebihan & Justifikasi
+              </div>
+              <ul>
+                <li><strong>Sangat Ringan:</strong> Hanya membutuhkan 2 container utama setelah inisialisasi. Cenderung lebih stabil berjalan di device berspesifikasi rendah dengan risiko crash yang lebih rendah.</li>
+                <li><strong>Mudah Di-maintain:</strong> Lebih sedikit bagian bergerak (<em>moving parts</em>) membantu meminimalkan potensi kegagalan sistem.</li>
+                <li><strong>Query Cepat:</strong> ClickHouse melakukan kompresi data kolom secara agresif, membantu mempercepat eksekusi query analitis dibanding database relasional biasa.</li>
+              </ul>
+            </div>
+
+            <div class="card">
+              <div class="card-header" style="color: var(--accent-rose);">
+                <span style="font-size: 1.25rem;">✗</span> Kerentanan Sistem Nyata
+              </div>
+              <ul>
+                <li><strong>Database SQLite Locked:</strong> Menggunakan database SQLite lokal bawaan Superset. Jika beberapa user mengakses/mengedit dashboard bersamaan, transaksi SQL rentan terblokir (<em>locked</em>).</li>
+                <li><strong>UI Freeze & Timeout:</strong> Tanpa Redis/Celery, query berat dari ClickHouse dieksekusi secara sinkron. Halaman visualisasi berisiko membeku dan rentan memicu <em>Gunicorn 504 Timeout</em>.</li>
+                <li><strong>Beban ClickHouse Berulang:</strong> Setiap filter dashboard memicu query langsung baru ke ClickHouse dari awal.</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="card" style="margin-top: 2.5rem; margin-bottom: 1.5rem;">
+            <div class="card-header" style="color: var(--accent-primary);">
+              <div class="card-icon" style="background-color: rgba(99, 102, 241, 0.1); color: var(--accent-primary);">
+                <svg style="width: 20px; height: 20px; fill: currentColor;" viewBox="0 0 24 24"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H8V4h12v12z"/></svg>
+              </div>
+              <span>Daftar Container Docker - Konsep 2 (Minimalis)</span>
+            </div>
+            
+            <h4 style="margin-top: 1.5rem; margin-bottom: 0.75rem; color: var(--text-primary); font-size: 1rem; border-bottom: 1px solid var(--card-border); padding-bottom: 0.25rem;">Container Utama (Wajib)</h4>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 1rem; margin-top: 0.75rem;">
+              <div style="background: var(--bg-tertiary); padding: 0.75rem 1rem; border-radius: 8px; border: 1px solid var(--card-border); display: flex; flex-direction: column; justify-content: center;">
+                <code style="align-self: flex-start;">superset-app</code>
+                <span style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">Web UI utama (SQLite local metadata)</span>
+              </div>
+              <div style="background: var(--bg-tertiary); padding: 0.75rem 1rem; border-radius: 8px; border: 1px solid var(--card-border); display: flex; flex-direction: column; justify-content: center;">
+                <code style="align-self: flex-start;">clickhouse-server</code>
+                <span style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">Engine database OLAP analitis</span>
+              </div>
+            </div>
+
+            <h4 style="margin-top: 1.5rem; margin-bottom: 0.75rem; color: var(--text-primary); font-size: 1rem; border-bottom: 1px solid var(--card-border); padding-bottom: 0.25rem;">Container Pendukung (Opsional)</h4>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 1rem; margin-top: 0.75rem;">
+              <div style="background: var(--bg-tertiary); padding: 0.75rem 1rem; border-radius: 8px; border: 1px solid var(--card-border); display: flex; flex-direction: column; justify-content: center;">
+                <code style="align-self: flex-start;">postgres</code>
+                <span style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">Metadata database (pengganti SQLite)</span>
+              </div>
+              <div style="background: var(--bg-tertiary); padding: 0.75rem 1rem; border-radius: 8px; border: 1px solid var(--card-border); display: flex; flex-direction: column; justify-content: center;">
+                <code style="align-self: flex-start;">redis</code>
+                <span style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">Cache dashboard & chart</span>
+              </div>
+              <div style="background: var(--bg-tertiary); padding: 0.75rem 1rem; border-radius: 8px; border: 1px solid var(--card-border); display: flex; flex-direction: column; justify-content: center;">
+                <code style="align-self: flex-start;">celery-worker</code>
+                <span style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">Worker eksekutor query asinkron</span>
+              </div>
+              <div style="background: var(--bg-tertiary); padding: 0.75rem 1rem; border-radius: 8px; border: 1px solid var(--card-border); display: flex; flex-direction: column; justify-content: center;">
+                <code style="align-self: flex-start;">celery-beat</code>
+                <span style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">Scheduler trigger laporan berkala</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="alert-box">
+            <div class="alert-box-header">
+              <svg style="width: 20px; height: 20px; fill: var(--accent-amber);" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
+              <span>Catatan Keamanan & Batasan Fitur</span>
+            </div>
+            Tanpa adanya background worker (Celery) pada Konsep 2, fitur <strong>Alerts & Reports</strong> (pengiriman grafik via email/Slack otomatis secara terjadwal) <strong>tidak dapat berfungsi</strong> sama sekali karena memerlukan penjadwalan asinkron di latar belakang.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 4: Perbandingan -->
+    <section id="perbandingan">
+      <h2>4. Matriks Perbandingan Arsitektur</h2>
+      <p>Perbandingan komprehensif aspek teknis dan operasional antara Konsep 1 dan Konsep 2:</p>
+      
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Aspek Evaluasi</th>
+              <th>Konsep 1: Enterprise Full-Stack</th>
+              <th>Konsep 2: Minimalist Setup</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Beban Resource (RAM/CPU)</strong></td>
+              <td><span class="badge badge-heavy">Rawan Melonjak</span><br>Penggunaan dasar sedang, tetapi rentan kehabisan RAM/CPU saat ETL & query aktif bersamaan (terutama pada spesifikasi RAM 8GB / Intel i3).</td>
+              <td><span class="badge badge-light">Ringan</span><br>2 Container Docker, RAM idle ~1GB (naik ke 2-4GB saat kueri aktif, jauh lebih hemat).</td>
+            </tr>
+            <tr>
+              <td><strong>Metrik Bisnis & Labeling</strong></td>
+              <td><span class="badge badge-light">Tersentralisasi (Cube.js)</span><br>Satu deklarasi semantic layer untuk semua tools analitik.</td>
+              <td><span class="badge badge-medium">Lokal per Dataset</span><br>Konfigurasi label & kalkulasi manual di dalam Superset.</td>
+            </tr>
+            <tr>
+              <td><strong>Stabilitas Konkurensi</strong></td>
+              <td><span class="badge badge-light">Tinggi</span><br>Metadata menggunakan PostgreSQL dan dilindungi cache Redis.</td>
+              <td><span class="badge badge-heavy">Rendah</span><br>SQLite rentan "Database Locked" jika diakses bersamaan.</td>
+            </tr>
+            <tr>
+              <td><strong>Kemudahan Pipeline ETL</strong></td>
+              <td><span class="badge badge-light">Mudah (No-Code UI)</span><br>Menggunakan panel GUI PeerDB untuk CDC otomatis.</td>
+              <td><span class="badge badge-medium">Manual</span><br>Membutuhkan script ETL Python/SQL untuk memindahkan data.</td>
+            </tr>
+            <tr>
+              <td><strong>Penyimpanan Disk</strong></td>
+              <td><span class="badge badge-heavy">Rawan Bengkak</span><br>Butuh penanganan berkala terhadap file staging MinIO & Cube.</td>
+              <td><span class="badge badge-light">Sangat Hemat</span><br>Hanya database ClickHouse terkompresi & metadata mini.</td>
+            </tr>
+            <tr>
+              <td><strong>Rekomendasi Lingkungan Deployment</strong></td>
+              <td>Server Produksi / VM Dedicated (RAM minimal 16GB).</td>
+              <td>Device lokal / tim kecil (RAM 8GB relatif mencukupi).</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Section 5: Superset vs Power BI -->
+    <section id="superset-vs-powerbi">
+      <h2>5. Perbandingan: Apache Superset vs Power BI Desktop</h2>
+      <p>Berikut adalah analisis komprehensif antara <strong>Apache Superset</strong> dan <strong>Microsoft Power BI Desktop</strong> untuk kebutuhan visualisasi data analitis dari sumber data (source):</p>
+      
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Kriteria Evaluasi</th>
+              <th>Apache Superset</th>
+              <th>Power BI Desktop</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Akses & Platform</strong></td>
+              <td>Berbasis Web (Cloud-native). Dapat diakses dari sistem operasi apa pun melalui web browser.</td>
+              <td>Aplikasi Desktop khusus Windows. Pengguna macOS/Linux memerlukan VM atau Remote Desktop.</td>
+            </tr>
+            <tr>
+              <td><strong>Konektivitas Sumber Data</strong></td>
+              <td>Koneksi langsung via SQLAlchemy. Relatif mudah dikonfigurasi dan ramah terhadap query besar.</td>
+              <td>Membutuhkan driver ODBC khusus atau konektor bawaan di Windows.</td>
+            </tr>
+            <tr>
+              <td><strong>Metode Pengambilan Data</strong></td>
+              <td>Selalu melakukan query langsung (Direct Query) ke sumber data (source) secara native.</td>
+              <td>Mendukung <em>Import Mode</em> (data diimpor ke RAM lokal) atau <em>DirectQuery</em> (query langsung ke sumber data).</td>
+            </tr>
+            <tr>
+              <td><strong>Semantic Layer</strong></td>
+              <td>Bersifat tipis (ringan). Untuk logika metrik bisnis yang rumit biasanya dipasangkan dengan Cube.js atau dbt.</td>
+              <td>Sangat kaya dan matang. Menggunakan bahasa DAX dan pemodelan Tabular untuk relasi data yang kompleks secara bawaan.</td>
+            </tr>
+            <tr>
+              <td><strong>Beban Device Lokal</strong></td>
+              <td>Sangat ringan di sisi klien (device lokal hanya menjalankan peramban/browser).</td>
+              <td>Cenderung berat jika menggunakan <em>Import Mode</em> karena memproses data di RAM device lokal.</td>
+            </tr>
+            <tr>
+              <td><strong>Pembaruan Data & File Sharing</strong></td>
+              <td>Memungkinkan akses mandiri karena dataset utama sudah terpusat dan terupdate otomatis di web tanpa perlu menunggu kiriman berkas terbaru, dengan tetap mendukung unggah berkas Excel tambahan jika diperlukan.</td>
+              <td>Jika bergantung pada berkas Excel lokal, berkas perlu diperbarui berkala (baik meminta berkas baru atau menunggu email otomatis) sehingga alur kerjanya kurang praktis.</td>
+            </tr>
+            <tr>
+              <td><strong>Kolaborasi & Lisensi</strong></td>
+              <td>Open-source (Gratis). Berbagi dashboard ke pengguna lain tidak memerlukan biaya lisensi tambahan.</td>
+              <td>Pembuatan laporan lokal gratis, tetapi berbagi/kolaborasi via web service membutuhkan lisensi Pro/Premium per user.</td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="card-grid">
+        <div class="card">
+          <div class="card-header" style="color: var(--accent-primary);">
+            <span>Kapan memilih Apache Superset?</span>
+          </div>
+          <ul style="padding-left: 0; margin-top: 0.5rem; list-style-type: none;">
+            <li style="position: relative; padding-left: 1.25rem; margin-bottom: 0.5rem; font-size: 0.95rem; color: var(--text-secondary);">
+              Membutuhkan platform visualisasi berbasis web terpusat agar seluruh pengguna dapat mengakses data terupdate secara mandiri tanpa perlu menunggu kiriman file berkala.
+            </li>
+            <li style="position: relative; padding-left: 1.25rem; margin-bottom: 0.5rem; font-size: 0.95rem; color: var(--text-secondary);">
+              Ingin menghindari biaya lisensi per pengguna untuk kebutuhan kolaborasi dan berbagi dashboard.
+            </li>
+            <li style="position: relative; padding-left: 1.25rem; margin-bottom: 0.5rem; font-size: 0.95rem; color: var(--text-secondary);">
+              Lebih menyukai analisis data berbasis kueri SQL langsung ke sumber data.
+            </li>
+            <li style="position: relative; padding-left: 1.25rem; margin-bottom: 0.5rem; font-size: 0.95rem; color: var(--text-secondary);">
+              Memiliki infrastruktur server/Docker terpisah agar pemrosesan data tidak membebani device lokal.
+            </li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="card-header" style="color: var(--accent-secondary);">
+            <span>Kapan memilih Power BI Desktop?</span>
+          </div>
+          <ul style="padding-left: 0; margin-top: 0.5rem; list-style-type: none;">
+            <li style="position: relative; padding-left: 1.25rem; margin-bottom: 0.5rem; font-size: 0.95rem; color: var(--text-secondary);">
+              Tim sudah terintegrasi dalam ekosistem Microsoft dan pengguna lebih terbiasa menggunakan Excel atau formula DAX.
+            </li>
+            <li style="position: relative; padding-left: 1.25rem; margin-bottom: 0.5rem; font-size: 0.95rem; color: var(--text-secondary);">
+              Membutuhkan pemodelan data lokal yang kompleks dan relasi antar tabel yang rumit sebelum laporan dibagikan.
+            </li>
+            <li style="position: relative; padding-left: 1.25rem; margin-bottom: 0.5rem; font-size: 0.95rem; color: var(--text-secondary);">
+              Memiliki spesifikasi device lokal yang memadai jika ingin menggunakan <em>Import Mode</em> untuk data berukuran besar guna meminimalkan risiko lambat.
+            </li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 6: Rekomendasi & Solusi -->
+    <section id="rekomendasi">
+      <h2>6. Rekomendasi & Solusi Jalan Tengah</h2>
+      <p>
+        Berdasarkan realitas keterbatasan infrastruktur komputer lokal, arsitektur terbaik adalah menerapkan <strong>Konsep 2 yang dioptimalkan</strong> (Solusi Hybrid). Kita meminimalkan container tetapi menutup lubang kelemahan fatal SQLite dan query sinkron.
+      </p>
+
+      <div class="card-grid" style="grid-template-columns: 1fr;">
+        <!-- Solusi 1 -->
+        <div class="card">
+          <div class="card-header" style="color: var(--accent-blue);">
+            <div class="card-icon" style="background-color: rgba(59, 130, 246, 0.1); color: var(--accent-blue);">
+              <svg style="width: 20px; height: 20px; fill: currentColor;" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+            </div>
+            <span>A. Migrasi SQLite ke PostgreSQL (Metadata Superset)</span>
+          </div>
+          <p>
+            Dengan mengubah database internal Superset dari SQLite bawaan menjadi database PostgreSQL mandiri (dapat berupa kontainer Docker Postgres kecil tambahan), kita membantu memitigasi tiga kendala operasional utama:
+          </p>
+          <ul style="margin-left: 1rem; margin-bottom: 1rem;">
+            <li><strong>Mengurangi Risiko Database Locked:</strong> PostgreSQL menangani transaksi simultan dengan baik, membantu meminimalkan risiko hambatan locking saat berkolaborasi mendesain dashboard.</li>
+            <li><strong>Keamanan Data Metadata:</strong> PostgreSQL menggunakan mekanisme <i>Write-Ahead Logging (WAL)</i>. Jika server atau WSL crash akibat beban kerja tinggi, metadata Superset (dashboard, grafik, role) berpotensi lebih terlindungi dari kerusakan data (korup).</li>
+            <li><strong>Siap Skala Up:</strong> Membantu memudahkan integrasi caching Redis dan celery worker di kemudian hari jika dibutuhkan tanpa perlu memigrasi data dari SQLite.</li>
+          </ul>
+        </div>
+
+        <!-- Solusi 2 -->
+        <div class="card">
+          <div class="card-header" style="color: var(--accent-emerald);">
+            <div class="card-icon" style="background-color: rgba(16, 185, 129, 0.1); color: var(--accent-emerald);">
+              <svg style="width: 20px; height: 20px; fill: currentColor;" viewBox="0 0 24 24"><path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/></svg>
+            </div>
+            <span>B. Optimalisasi Layar Dataset Superset (Pengganti Cube.js)</span>
+          </div>
+          <p>
+            Tanpa Cube.js, standarisasi labeling dipindahkan langsung ke dalam menu manajemen Dataset di Apache Superset. Superset menyediakan antarmuka internal yang kuat:
+          </p>
+          <ul style="margin-left: 1rem; margin-bottom: 1rem;">
+            <li><strong>Labeling Kolom:</strong> Kolom database analitis yang kaku seperti <code>dtl_tr_id</code> dapat dideklarasikan dengan label manusiawi <code>"ID Detail Transaksi"</code>. Pengguna awam cukup melakukan drag-and-drop label ramah tersebut.</li>
+            <li><strong>Datetime Format:</strong> Kunci format waktu standardisasi (misalnya <code>YYYY-MM-DD HH:mm:ss</code>) di tingkat dataset agar tidak terjadi perbedaan representasi zona waktu di tiap grafik.</li>
+            <li><strong>Calculated Columns:</strong> Logika bisnis (misal: <code>Harga * Jumlah * (1 - Diskon)</code>) dapat ditulis langsung sebagai kolom kalkulasi sekali saja menggunakan sintaks SQL ClickHouse, siap dipakai oleh seluruh visualisasi turunan.</li>
+          </ul>
+        </div>
+
+        <!-- Solusi 3 -->
+        <div class="card">
+          <div class="card-header" style="color: var(--accent-amber);">
+            <div class="card-icon" style="background-color: rgba(245, 158, 11, 0.1); color: var(--accent-amber);">
+              <svg style="width: 20px; height: 20px; fill: currentColor;" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
+            </div>
+            <span>C. Manajemen Siklus Data di ClickHouse (DML & Partisi)</span>
+          </div>
+          <p>
+            ClickHouse adalah database columnar yang bersifat <i>append-only</i>. Operasi DML <code>UPDATE</code> atau <code>DELETE</code> standar akan sangat lambat dan memakan resource. Berikut mitigasi performanya:
+          </p>
+          <ul style="margin-left: 1rem; margin-bottom: 1rem;">
+            <li><strong>ReplacingMergeTree Engine:</strong> Gunakan engine tabel ini untuk mengatasi data transaksional yang sering berubah status. ClickHouse dirancang untuk menyaring data lama dan menyisakan data dengan versi terbaru secara berkala di latar belakang berdasarkan primary key.</li>
+            <li><strong>Partisi Tabel:</strong> Selalu partisi data tabel ClickHouse (misal per bulan/tahun). Partisi yang tepat membantu mengurangi kemungkinan terjadinya kueri memindai seluruh tabel data (<em>full-table scan</em>) saat filter dashboard diubah, sehingga membantu menghemat penggunaan CPU ClickHouse.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    // Tab switching logic
+    function switchTab(evt, tabId) {
+      // Get all elements with class="tab-content" and hide them
+      const tabContents = document.getElementsByClassName("tab-content");
+      for (let i = 0; i < tabContents.length; i++) {
+        tabContents[i].classList.remove("active");
+      }
+
+      // Get all elements with class="tab-btn" and remove the class "active"
+      const tabBtns = document.getElementsByClassName("tab-btn");
+      for (let i = 0; i < tabBtns.length; i++) {
+        tabBtns[i].classList.remove("active");
+      }
+
+      // Show the current tab, and add an "active" class to the button that opened the tab
+      document.getElementById(tabId).classList.add("active");
+      if (evt && evt.currentTarget) {
+        evt.currentTarget.classList.add("active");
+      } else {
+        // If programmatically triggered without click event
+        const btn = document.querySelector(`.tab-btn[onclick*="${tabId}"]`);
+        if (btn) btn.classList.add("active");
+      }
+    }
+
+    // Theme toggle logic
+    const themeToggle = document.getElementById("themeToggle");
+    const themeIcon = document.getElementById("themeIcon");
+    const themeText = document.getElementById("themeText");
+    const htmlEl = document.documentElement;
+
+    themeToggle.addEventListener("click", () => {
+      const currentTheme = htmlEl.getAttribute("data-theme");
+      if (currentTheme === "dark") {
+        htmlEl.setAttribute("data-theme", "light");
+        themeText.textContent = "Dark Mode";
+        themeIcon.innerHTML = '<path d="M12 3c.132 0 .263 0 .393.007a7.5 7.5 0 0 0 7.92 12.446A9 9 0 1 1 12 2.992z"/>'; // Moon icon
+      } else {
+        htmlEl.setAttribute("data-theme", "dark");
+        themeText.textContent = "Light Mode";
+        themeIcon.innerHTML = '<path d="M12 18c-3.3 0-6-2.7-6-6s2.7-6 6-6 6 2.7 6 6-2.7 6-6 6zm0-14c-4.4 0-8 3.6-8 8s3.6 8 8 8 8-3.6 8-8-3.6-8-8-8z"/>'; // Sun icon
+      }
+    });
+
+    // Mobile menu toggle
+    const menuToggle = document.getElementById("menuToggle");
+    const sidebar = document.getElementById("sidebar");
+
+    menuToggle.addEventListener("click", (e) => {
+      sidebar.classList.toggle("open");
+      e.stopPropagation();
+    });
+
+    // Close sidebar when clicking outside on mobile
+    document.addEventListener("click", (e) => {
+      if (window.innerWidth <= 1024 && !sidebar.contains(e.target) && e.target !== menuToggle) {
+        sidebar.classList.remove("open");
+      }
+    });
+
+    // Intercept sidebar links to switch tabs programmatically
+    document.querySelectorAll('.nav-menu a, .mobile-header a').forEach(link => {
+      link.addEventListener('click', (e) => {
+        const href = link.getAttribute('href');
+        if (href === '#konsep1' || href === '#konsep2') {
+          e.preventDefault();
+          const tabId = href === '#konsep1' ? 'tab-konsep1' : 'tab-konsep2';
+          
+          // Switch the tab
+          switchTab(null, tabId);
+          
+          // Scroll to the tabs section
+          const targetSection = document.getElementById('konsep-arsitektur');
+          if (targetSection) {
+            targetSection.scrollIntoView({ behavior: 'smooth' });
+          }
+          
+          // Close mobile menu if open
+          sidebar.classList.remove("open");
+
+          // Update active class in sidebar manually
+          document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
+          link.parentElement.classList.add('active');
+
+          // Update hash in URL bar
+          history.pushState(null, null, href);
+        }
+      });
+    });
+
+    // Handle scroll highlight active menu
+    const sections = document.querySelectorAll("section");
+    const navItems = document.querySelectorAll(".nav-item");
+
+    window.addEventListener("scroll", () => {
+      let current = "";
+      sections.forEach((section) => {
+        const sectionTop = section.offsetTop;
+        const sectionHeight = section.clientHeight;
+        if (pageYOffset >= sectionTop - 150) {
+          current = section.getAttribute("id");
+        }
+      });
+
+      navItems.forEach((li) => {
+        li.classList.remove("active");
+        const href = li.querySelector("a").getAttribute("href").substring(1);
+        
+        if (current === "konsep-arsitektur") {
+          // Determine which tab is active and highlight the corresponding sidebar link
+          const tab1Active = document.getElementById("tab-konsep1").classList.contains("active");
+          if (tab1Active && href === "konsep1") {
+            li.classList.add("active");
+          } else if (!tab1Active && href === "konsep2") {
+            li.classList.add("active");
+          }
+        } else if (current && href === current) {
+          li.classList.add("active");
+        }
+      });
+    });
+  </script>
+</body>
+</html>
