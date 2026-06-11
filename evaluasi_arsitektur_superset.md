@@ -221,6 +221,8 @@ Konsep 1 (Enterprise Full-Stack) dirancang untuk lingkungan produksi skala besar
 
 * **Tujuan Pengujian Batas:** Pengujian sengaja menggunakan hardware berspesifikasi minim untuk memetakan batasan kritis. Konsep 1 dengan 14 container (estimasi idle RAM ~2.5–4.5 GB) terbukti memicu crash akibat lonjakan resource saat proses ETL CDC (PeerDB) dan query analitis berjalan bersamaan.
 * **Relevansi Produksi:** Meskipun berat untuk laptop testing, **Konsep 1 merupakan arsitektur target utama (recommended)** ketika dideploy ke infrastruktur server Linux produksi sesungguhnya menggunakan Docker CLI atau Kubernetes, di mana resource hardware dedicated tersedia secara melimpah dan isolasi container terjamin.
+* **Kebutuhan CDC Semi-Instan & Data Masif:** Jika terdapat kebutuhan menyinkronkan data transaksional bervolume masif dari database OLTP ke database OLAP ClickHouse secara cepat tanpa membebani performa database transaksional utama, maka Konsep 1 dengan infrastruktur CDC (PeerDB) menjadi kebutuhan wajib.
+* **Skenario Belum Memiliki Sistem BI/ETL Inplace:** Konsep 1 bertindak sebagai **solusi komprehensif (*comprehensive solution*)** yang siap pakai. Jika internal organisasi belum memiliki sistem pipeline ETL, CDC, maupun semantic layer yang terpasang (*inplace*), arsitektur lengkap ini sangat direkomendasikan karena mengintegrasikan seluruh silo data dari hulu ke hilir.
 * **Kapasitas Operasional:** Arsitektur 14 container ini membutuhkan tim ops untuk monitoring pipeline CDC, pre-aggregations Cube.js, dan queue Celery secara berkelanjutan di cluster Kubernetes.
 
 > 💡 **Konsep 1 tetap relevan sebagai target arsitektur jangka panjang** ketika tahap implementasi final dilakukan ke Linux server dengan Docker CLI / Kubernetes.
