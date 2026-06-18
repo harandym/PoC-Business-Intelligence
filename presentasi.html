@@ -1,0 +1,1083 @@
+<!DOCTYPE html>
+<html lang="id" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Presentasi PoC BI: Apache Superset</title>
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  
+  <style>
+    :root {
+      --bg-gradient: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #311042 100%);
+      --surface: rgba(30, 41, 59, 0.7);
+      --surface-hover: rgba(30, 41, 59, 0.85);
+      --border: rgba(255, 255, 255, 0.08);
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent: #3b82f6;
+      --accent-gradient: linear-gradient(135deg, #3b82f6, #8b5cf6);
+      --accent-success: #10b981;
+      --accent-warning: #f59e0b;
+      --accent-danger: #ef4444;
+      --shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+      --glass-blur: blur(16px);
+      --radius: 16px;
+    }
+
+    [data-theme="light"] {
+      --bg-gradient: linear-gradient(135deg, #f1f5f9 0%, #e0e7ff 50%, #fae8ff 100%);
+      --surface: rgba(255, 255, 255, 0.75);
+      --surface-hover: rgba(255, 255, 255, 0.9);
+      --border: rgba(0, 0, 0, 0.06);
+      --text: #0f172a;
+      --text-muted: #475569;
+      --accent: #2563eb;
+      --accent-gradient: linear-gradient(135deg, #2563eb, #7c3aed);
+      --accent-success: #059669;
+      --accent-warning: #d97706;
+      --accent-danger: #dc2626;
+      --shadow: 0 20px 40px rgba(15, 23, 42, 0.08);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg-gradient);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      transition: background 0.5s ease, color 0.3s ease;
+    }
+
+    /* BACKGROUND ANIMATION */
+    .bg-animation {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: -1;
+      overflow: hidden;
+      opacity: 0.6;
+    }
+
+    .circle {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(80px);
+      animation: float 20s infinite alternate;
+    }
+
+    .circle-1 {
+      top: 10%;
+      left: 10%;
+      width: 300px;
+      height: 300px;
+      background: rgba(59, 130, 246, 0.15);
+    }
+
+    .circle-2 {
+      bottom: 10%;
+      right: 10%;
+      width: 400px;
+      height: 400px;
+      background: rgba(139, 92, 246, 0.15);
+      animation-delay: -5s;
+    }
+
+    @keyframes float {
+      0% { transform: translate(0, 0) scale(1); }
+      100% { transform: translate(50px, 50px) scale(1.2); }
+    }
+
+    /* HEADER & NAV */
+    header {
+      padding: 15px 40px 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 10;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      font-size: 15px;
+      letter-spacing: -0.02em;
+    }
+
+    .logo svg {
+      stroke: var(--accent);
+    }
+
+    .controls-top {
+      display: flex;
+      gap: 12px;
+    }
+
+    .btn-icon {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      cursor: pointer;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+      backdrop-filter: var(--glass-blur);
+    }
+
+    .btn-icon:hover {
+      background: var(--accent);
+      color: white;
+      border-color: transparent;
+      transform: translateY(-2px);
+    }
+
+    /* SLIDES CONTAINER */
+    .deck-container {
+      flex: 1;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 0 40px;
+      position: relative;
+    }
+
+    .slide {
+      width: 100%;
+      max-width: 1150px;
+      height: 75vh;
+      max-height: 600px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      backdrop-filter: var(--glass-blur);
+      padding: 32px 40px;
+      display: none;
+      flex-direction: column;
+      justify-content: space-between;
+      position: absolute;
+      opacity: 0;
+      transform: scale(0.97) translateY(10px);
+      transition: opacity 0.4s ease, transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+      z-index: 1;
+      overflow: hidden; /* Prevent slide-level scrolling */
+    }
+
+    .slide.active {
+      display: flex;
+      opacity: 1;
+      transform: scale(1) translateY(0);
+      z-index: 2;
+    }
+
+    /* SLIDE CONTENTS */
+    .slide-body {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      overflow: hidden; /* Prevent scrolling inside body if possible */
+    }
+
+    .slide-header {
+      margin-bottom: 16px;
+    }
+
+    .slide-badge {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      background: rgba(59, 130, 246, 0.15);
+      color: var(--accent);
+      margin-bottom: 8px;
+      border: 1px solid rgba(59, 130, 246, 0.2);
+    }
+
+    .slide h2 {
+      font-size: 28px;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      line-height: 1.2;
+      background: linear-gradient(135deg, var(--text) 50%, var(--text-muted) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .slide h3 {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--accent);
+      margin: 12px 0 6px 0;
+    }
+
+    .slide p {
+      font-size: 14px;
+      color: var(--text-muted);
+      line-height: 1.5;
+      margin-bottom: 10px;
+    }
+
+    .slide p strong {
+      color: var(--text);
+    }
+
+    /* GRID & CARDS */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 16px;
+      margin-top: 8px;
+    }
+
+    .card {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px 20px;
+      transition: all 0.3s ease;
+    }
+
+    .card:hover {
+      background: var(--surface-hover);
+      border-color: var(--accent);
+      transform: translateY(-2px);
+    }
+
+    .card-title {
+      font-weight: 700;
+      font-size: 14px;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--text);
+    }
+
+    /* LISTS */
+    ul {
+      list-style: none;
+    }
+
+    li {
+      position: relative;
+      padding-left: 16px;
+      margin-bottom: 6px;
+      font-size: 13px;
+      color: var(--text-muted);
+      line-height: 1.4;
+    }
+
+    li::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 6px;
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: var(--accent);
+    }
+
+    /* BADGES */
+    .bdg {
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+    .bdg-r { background: rgba(239, 68, 68, 0.15); color: var(--accent-danger); border: 1px solid rgba(239, 68, 68, 0.2); }
+    .bdg-g { background: rgba(16, 185, 129, 0.15); color: var(--accent-success); border: 1px solid rgba(16, 185, 129, 0.2); }
+    .bdg-y { background: rgba(245, 158, 11, 0.15); color: var(--accent-warning); border: 1px solid rgba(245, 158, 11, 0.2); }
+
+    /* TABLES */
+    .tbl-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      margin-top: 10px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+      text-align: left;
+    }
+
+    th {
+      background: rgba(255, 255, 255, 0.03);
+      padding: 8px 12px;
+      font-weight: 600;
+      border-bottom: 2px solid var(--border);
+      color: var(--text);
+    }
+
+    td {
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-muted);
+      vertical-align: top;
+      line-height: 1.4;
+    }
+
+    tr:hover td {
+      background: rgba(255, 255, 255, 0.01);
+    }
+
+    /* ALUR DATA VISUAL */
+    .flow-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      margin: 12px 0;
+      padding: 12px;
+      background: rgba(255, 255, 255, 0.01);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+    }
+
+    .flow-node {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 12px;
+      text-align: center;
+      min-width: 120px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+
+    .flow-node.hl {
+      border-color: var(--accent);
+      background: rgba(59, 130, 246, 0.05);
+      box-shadow: 0 0 10px rgba(59, 130, 246, 0.1);
+    }
+
+    .flow-node strong {
+      display: block;
+      font-size: 11px;
+      color: var(--text);
+    }
+
+    .flow-node span {
+      display: block;
+      font-size: 9px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .flow-arrow {
+      color: var(--accent);
+      font-weight: bold;
+      font-size: 16px;
+    }
+
+    /* ALERTS */
+    .alert {
+      background: rgba(245, 158, 11, 0.05);
+      border: 1px solid rgba(245, 158, 11, 0.15);
+      border-left: 3px solid var(--accent-warning);
+      border-radius: 6px;
+      padding: 8px 12px;
+      margin: 10px 0;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    .alert strong {
+      color: var(--text);
+    }
+
+    /* PRESENTATION CONTROLS */
+    .controls-bottom {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 20px 40px;
+      z-index: 10;
+    }
+
+    .slide-number {
+      font-size: 14px;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    .nav-buttons {
+      display: flex;
+      gap: 12px;
+    }
+
+    .btn-nav {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      cursor: pointer;
+      padding: 10px 20px;
+      border-radius: 30px;
+      font-weight: 600;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s ease;
+      backdrop-filter: var(--glass-blur);
+    }
+
+    .btn-nav:hover {
+      background: var(--accent);
+      color: white;
+      border-color: transparent;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+    }
+
+    .btn-nav:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
+    /* PROGRESS BAR */
+    .progress-container {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.05);
+      z-index: 10;
+    }
+
+    .progress-bar {
+      height: 100%;
+      width: 0%;
+      background: var(--accent-gradient);
+      transition: width 0.3s ease;
+    }
+
+    /* COVER PAGE SPECIFIC */
+    .cover-body {
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 20px;
+    }
+
+    .cover-title {
+      font-size: 44px;
+      font-weight: 800;
+      letter-spacing: -0.04em;
+      line-height: 1.15;
+      background: linear-gradient(135deg, var(--text) 30%, #8b5cf6 90%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .cover-sub {
+      font-size: 18px;
+      color: var(--text-muted);
+      max-width: 700px;
+      margin: 0 auto;
+    }
+
+    .cover-meta {
+      display: flex;
+      gap: 24px;
+      margin-top: 30px;
+      font-size: 13px;
+      color: var(--text-muted);
+      background: rgba(255, 255, 255, 0.02);
+      padding: 10px 20px;
+      border-radius: 30px;
+      border: 1px solid var(--border);
+    }
+
+    .cover-meta span {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* THANK YOU SPECIFIC */
+    .thank-you-body {
+      text-align: center;
+      justify-content: center;
+    }
+
+    .thank-you-title {
+      font-size: 54px;
+      font-weight: 800;
+      background: var(--accent-gradient);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 20px;
+    }
+
+    /* RESPONSIVE DESIGN */
+    @media (max-width: 768px) {
+      header { padding: 15px 20px; }
+      .deck-container { padding: 0 15px; }
+      .slide { padding: 24px; height: 78vh; }
+      .slide h2 { font-size: 24px; }
+      .cover-title { font-size: 28px; }
+      .cover-sub { font-size: 14px; }
+      .grid { grid-template-columns: 1fr; gap: 12px; }
+      .controls-bottom { padding: 15px 20px; }
+      .flow-row { padding: 10px; gap: 10px; }
+      .flow-node { min-width: 100px; padding: 8px; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="bg-animation">
+    <div class="circle circle-1"></div>
+    <div class="circle circle-2"></div>
+  </div>
+
+  <header>
+    <div class="logo">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18"/></svg>
+      <span>Evaluasi PoC Apache Superset</span>
+    </div>
+    <div class="controls-top">
+      <button class="btn-icon" id="themeBtn" title="Ganti Tema">🌙</button>
+      <button class="btn-icon" id="fullscreenBtn" title="Layar Penuh">🖥️</button>
+    </div>
+  </header>
+
+  <div class="deck-container">
+
+    <!-- SLIDE 1: COVER -->
+    <div class="slide active">
+      <div class="slide-body cover-body">
+        <div class="slide-badge">Evaluasi Infrastruktur Data</div>
+        <h1 class="cover-title">Laporan PoC BI:<br>Evaluasi Apache Superset</h1>
+        <p class="cover-sub">Analisis komprehensif arsitektur, kapasitas resource, komparasi platform, dan langkah optimasi praktis.</p>
+        <div class="cover-meta">
+          <span>📅 11 Juni 2026</span>
+          <span>✅ Status: Evaluasi Selesai</span>
+          <span>✍️ Tim Analis Antigravity</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 2: PENDAHULUAN -->
+    <div class="slide">
+      <div class="slide-header">
+        <div class="slide-badge">Pengenalan</div>
+        <h2>Pendahuluan: Apache Superset</h2>
+      </div>
+      <div class="slide-body">
+        <p><strong>Apache Superset</strong> adalah platform visualisasi data modern, cepat, dan tangguh untuk menampilkan visualisasi interaktif dari data mentah/olahan. Mendukung konektivitas luas via SQLAlchemy.</p>
+        <div class="grid">
+          <div class="card">
+            <div class="card-title">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+              Eksplorasi & Query Data
+            </div>
+            <ul>
+              <li><strong>SQL Lab:</strong> IDE query interaktif terintegrasi untuk merancang SQL.</li>
+              <li><strong>Query to Dataset:</strong> Hasil query SQL langsung diubah menjadi dataset siap pakai.</li>
+              <li><strong>Upload Data:</strong> Kemampuan import file data lokal (CSV) langsung ke DB target.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <div class="card-title">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+              Kolaborasi & Aksesibilitas
+            </div>
+            <ul>
+              <li><strong>Keamanan Granular:</strong> Izin akses spesifik per User, Role, Group, maupun Dataset.</li>
+              <li><strong>Sharing & Embedding:</strong> Integrasi grafik via iframe serta export dashboard.</li>
+              <li><strong>Export Multi-Format:</strong> Mendukung export ke CSV, Excel, Image PNG, dan PDF.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 3: EVALUASI ARSITEKTUR -->
+    <div class="slide">
+      <div class="slide-header">
+        <div class="slide-badge">Pilihan Desain</div>
+        <h2>Dua Opsi Arsitektur Deployment</h2>
+      </div>
+      <div class="slide-body">
+        <p>Evaluasi berfokus pada dua skenario arsitektur dengan karakteristik beban dan fungsionalitas yang berbeda:</p>
+        <div class="grid">
+          <div class="card">
+            <div class="card-title">
+              <span class="bdg bdg-r">Konsep 1: Enterprise Full-Stack</span>
+            </div>
+            <p><strong>Arsitektur heavyweight terpadu</strong> yang mengintegrasikan otomatisasi CDC (Change Data Capture), global semantic layer, antrean tugas asinkron, dan caching berlapis.</p>
+            <ul>
+              <li>Ideal untuk volume data besar & CDC semi-instan</li>
+              <li>Kompatibilitas Multi-BI via semantic layer terpusat (Cube)</li>
+              <li>Menghindari pembekuan UI dengan antrean Celery</li>
+            </ul>
+          </div>
+          <div class="card">
+            <div class="card-title">
+              <span class="bdg bdg-g">Konsep 2: Minimalist Setup</span>
+            </div>
+            <p><strong>Arsitektur minimalis & efisien</strong> yang memotong seluruh middleware demi kemudahan pemeliharaan dan penghematan RAM pada server target.</p>
+            <ul>
+              <li>Instalasi sangat instan & minim bagian bergerak</li>
+              <li>Sangat ringan untuk uji coba/PoC lokal (RAM idle ~1GB)</li>
+              <li>Menggunakan query langsung ke columnar store ClickHouse</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 4: ALUR DATA KONSEP 1 -->
+    <div class="slide">
+      <div class="slide-header">
+        <div class="slide-badge">Konsep 1: Enterprise</div>
+        <h2>Data Pipeline & Caching (Enterprise Full-Stack)</h2>
+      </div>
+      <div class="slide-body">
+        <p>Arsitektur komprehensif dari hulu ke hilir untuk meminimalkan beban di database transaksional (OLTP):</p>
+        <div class="flow-row">
+          <div class="flow-node">
+            <strong>PostgreSQL (OLTP)</strong>
+            <span>Sumber Transaksional</span>
+          </div>
+          <span class="flow-arrow">&rarr;</span>
+          <div class="flow-node hl">
+            <strong>PeerDB (CDC)</strong>
+            <span>Staging via MinIO</span>
+          </div>
+          <span class="flow-arrow">&rarr;</span>
+          <div class="flow-node">
+            <strong>ClickHouse</strong>
+            <span>OLAP Columnar Store</span>
+          </div>
+          <span class="flow-arrow">&rarr;</span>
+          <div class="flow-node hl">
+            <strong>Cube.js</strong>
+            <span>Semantic & Pre-Agg</span>
+          </div>
+          <span class="flow-arrow">&rarr;</span>
+          <div class="flow-node">
+            <strong>Superset (BI)</strong>
+            <span>Render Dashboard</span>
+          </div>
+        </div>
+        <ul>
+          <li><strong>CDC Otomatis:</strong> Replikasi real-time dari PostgreSQL OLTP ke ClickHouse OLAP menggunakan CDC PeerDB.</li>
+          <li><strong>Cube.js Semantic Layer:</strong> Mendefinisikan metrik bisnis satu kali untuk diakses oleh berbagai tool BI.</li>
+          <li><strong>Asynchronous Celery Workers:</strong> Menghindari timeout di UI dengan memproses kueri berat di latar belakang.</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- SLIDE 5: ALUR DATA KONSEP 2 -->
+    <div class="slide">
+      <div class="slide-header">
+        <div class="slide-badge">Konsep 2: Minimalis</div>
+        <h2>Data Pipeline & Caching (Minimalist Setup)</h2>
+      </div>
+      <div class="slide-body">
+        <p>Arsitektur minimalis yang memangkas komponen perantara untuk menghemat memori komputer lokal:</p>
+        <div class="flow-row">
+          <div class="flow-node">
+            <strong>Data Source (OLTP)</strong>
+            <span>Sumber Transaksi</span>
+          </div>
+          <span class="flow-arrow">&rarr;</span>
+          <div class="flow-node hl">
+            <strong>Custom Python Script</strong>
+            <span>Direct Bulk Load</span>
+          </div>
+          <span class="flow-arrow">&rarr;</span>
+          <div class="flow-node">
+            <strong>ClickHouse</strong>
+            <span>OLAP Store (Flat Table)</span>
+          </div>
+          <span class="flow-arrow">&rarr;</span>
+          <div class="flow-node hl">
+            <strong>Superset (BI)</strong>
+            <span>SQLite Local Metadata</span>
+          </div>
+        </div>
+        <ul>
+          <li><strong>ETL Sederhana:</strong> Menggunakan script Python terjadwal secara berkala untuk memindahkan data.</li>
+          <li><strong>Direct Querying:</strong> Superset langsung menembak ClickHouse untuk memuat visualisasi grafik.</li>
+          <li><strong>Keterbatasan Fitur:</strong> Tanpa Celery workers, fitur <strong>Alerts & Reports</strong> terjadwal tidak dapat aktif.</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- SLIDE 6: MATRIKS PERBANDINGAN -->
+    <div class="slide">
+      <div class="slide-header">
+        <div class="slide-badge">Analisis Teknis</div>
+        <h2>Matriks Perbandingan Arsitektur</h2>
+      </div>
+      <div class="slide-body">
+        <div class="tbl-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Aspek Evaluasi</th>
+                <th>Konsep 1: Enterprise Full-Stack</th>
+                <th>Konsep 2: Minimalist Setup</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Beban Resource</strong></td>
+                <td><span class="bdg bdg-r">Rawan Melonjak</span> (Rawan crash pada RAM 8GB saat CDC aktif)</td>
+                <td><span class="bdg bdg-g">Ringan</span> (RAM idle ~1GB, hemat resource lokal)</td>
+              </tr>
+              <tr>
+                <td><strong>Metrik Bisnis</strong></td>
+                <td><span class="bdg bdg-g">Tersentralisasi (Cube.js)</span> (Satu schema global)</td>
+                <td><span class="bdg bdg-y">Lokal per Dataset</span> (Manual di dalam Superset)</td>
+              </tr>
+              <tr>
+                <td><strong>Stabilitas Konkurensi</strong></td>
+                <td><span class="bdg bdg-g">Tinggi</span> (Menggunakan PostgreSQL & Cache Redis)</td>
+                <td><span class="bdg bdg-r">Rendah</span> (SQLite rentan <i>Database Locked</i>)</td>
+              </tr>
+              <tr>
+                <td><strong>Penyimpanan Disk</strong></td>
+                <td><span class="bdg bdg-r">Rawan Bengkak</span> (File staging MinIO & agregasi Cube)</td>
+                <td><span class="bdg bdg-g">Sangat Hemat</span> (Hanya database utama ClickHouse)</td>
+              </tr>
+              <tr>
+                <td><strong>Rekomendasi Lingkungan</strong></td>
+                <td><strong>Produksi Server Linux / Kubernetes (RAM &ge; 16GB)</strong></td>
+                <td><strong>Fase PoC / Uji Batas Lokal / VM Tim Kecil</strong></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 7: ESTIMASI RESOURCE -->
+    <div class="slide">
+      <div class="slide-header">
+        <div class="slide-badge">Kapasitas</div>
+        <h2>Estimasi Kebutuhan Memori (RAM)</h2>
+      </div>
+      <div class="slide-body">
+        <div class="grid">
+          <div>
+            <h3>Konsep 1 (Full-Feature)</h3>
+            <div class="tbl-wrap" style="max-height: 170px;">
+              <table>
+                <thead>
+                  <tr><th>Container</th><th>Estimasi RAM Idle</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td><code>superset-app</code></td><td>~300-500 MB</td></tr>
+                  <tr><td><code>clickhouse-server</code></td><td>~500 MB-1 GB</td></tr>
+                  <tr><td><code>celery-worker</code></td><td>~200-400 MB</td></tr>
+                  <tr><td><code>cube-core</code></td><td>~300-600 MB</td></tr>
+                  <tr><td><code>peerdb-server</code></td><td>~200-400 MB</td></tr>
+                  <tr><td><i>Silo Container Lainnya</i></td><td>~1.0-1.5 GB</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="alert" style="padding: 6px 10px; margin-top: 6px; margin-bottom: 0;">
+              <strong>Total RAM Idle: ~2.5 - 4.5 GB</strong> (Beban tinggi untuk local dev 8GB)
+            </div>
+          </div>
+          
+          <div>
+            <h3>Konsep 2 (Minimalis)</h3>
+            <div class="tbl-wrap" style="max-height: 170px;">
+              <table>
+                <thead>
+                  <tr><th>Container</th><th>Estimasi RAM Idle</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td><code>superset-app</code></td><td>~300-500 MB</td></tr>
+                  <tr><td><code>clickhouse-server</code></td><td>~500 MB-1 GB</td></tr>
+                  <tr><td><code>postgres</code> (Optional DB)</td><td>~50-100 MB</td></tr>
+                  <tr><td><code>redis</code> (Optional Cache)</td><td>~30-50 MB</td></tr>
+                  <tr><td><code>celery-worker</code> (Optional)</td><td>~200-400 MB</td></tr>
+                  <tr><td>-</td><td>-</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="alert" style="padding: 6px 10px; margin-top: 6px; margin-bottom: 0;">
+              <strong>Total RAM Idle (Inti): ~800 MB - 1.5 GB</strong> (Ringan & stabil untuk dev)
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 8: VS POWER BI -->
+    <div class="slide">
+      <div class="slide-header">
+        <div class="slide-badge">Komparasi Platform</div>
+        <h2>Apache Superset vs Power BI Desktop</h2>
+      </div>
+      <div class="slide-body">
+        <div class="tbl-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Fitur Utama</th>
+                <th>Apache Superset</th>
+                <th>Power BI Desktop</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Aksesibilitas</strong></td>
+                <td>Berbasis Web (Cloud-native), multi-OS terpusat.</td>
+                <td>Aplikasi Desktop khusus Windows OS.</td>
+              </tr>
+              <tr>
+                <td><strong>Konektivitas & Query</strong></td>
+                <td>Langsung via SQLAlchemy ke OLAP (ClickHouse, dll).</td>
+                <td>Menggunakan ODBC driver atau model data impor lokal.</td>
+              </tr>
+              <tr>
+                <td><strong>Semantic Layer</strong></td>
+                <td>Tipis (direkomendasikan integrasi dbt/Cube).</td>
+                <td>Sangat matang dengan formula DAX bawaan.</td>
+              </tr>
+              <tr>
+                <td><strong>Beban Klien Lokal</strong></td>
+                <td>Sangat Ringan (semua pemrosesan berjalan di server).</td>
+                <td>Cenderung Berat (menggunakan RAM lokal untuk <i>Import Mode</i>).</td>
+              </tr>
+              <tr>
+                <td><strong>Kolaborasi & Biaya</strong></td>
+                <td><span class="bdg bdg-g">Open-source & Gratis</span> tanpa limitasi share user.</td>
+                <td>Membutuhkan lisensi Pro/Premium untuk membagikan report.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 9: REKOMENDASI A -->
+    <div class="slide">
+      <div class="slide-header">
+        <div class="slide-badge">Strategi Deployment</div>
+        <h2>Rekomendasi A: Strategi Fase PoC & Produksi</h2>
+      </div>
+      <div class="slide-body">
+        <div class="grid">
+          <div class="card">
+            <div class="card-title" style="color:var(--accent-warning)">
+              Mengapa Konsep 1 Ditunda di Fase PoC Lokal?
+            </div>
+            <p>Spesifikasi hardware lokal pengujian (RAM 8 GB, CPU i3) sengaja difungsikan sebagai <strong>stress test</strong> untuk memetakan batasan sistem.</p>
+            <ul>
+              <li><strong>Beban Idle Berlebih:</strong> Konsep 1 dengan 14 kontainer memakan &gt;50% kapasitas RAM lokal bahkan sebelum memproses data.</li>
+              <li><strong>Risiko Crash:</strong> Sinkronisasi PeerDB secara konstan bersamaan query analitis terbukti memicu kegagalan resource di mesin lokal.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <div class="card-title" style="color:var(--accent-success)">
+              Konsep 1 Sebagai Target Produksi Utama
+            </div>
+            <p>Meskipun ditunda untuk pengujian lokal, Konsep 1 tetap menjadi <strong>rekomendasi final target produksi</strong> pada server Linux/Kubernetes dedicatd.</p>
+            <ul>
+              <li><strong>Solusi Comprehensive:</strong> Sangat ideal jika internal organisasi belum memiliki pipeline ETL, CDC, maupun global semantic layer.</li>
+              <li><strong>CDC Otomatis:</strong> Replikasi data dari OLTP PostgreSQL ke ClickHouse berjalan mulus tanpa coding manual ETL.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 10: REKOMENDASI B -->
+    <div class="slide">
+      <div class="slide-header">
+        <div class="slide-badge">Optimasi</div>
+        <h2>Rekomendasi B: Solusi Hybrid Pengujian PoC</h2>
+      </div>
+      <div class="slide-body">
+        <p>Agar pengujian PoC lokal tetap stabil dan terhindar dari keterbatasan database SQLite bawaan, berikut langkah optimasi hybrid:</p>
+        <div class="grid">
+          <div class="card">
+            <div class="card-title">
+              B.1 Migrasi Metadata ke PostgreSQL
+            </div>
+            <p>Ganti database internal Superset (SQLite) dengan container PostgreSQL mandiri:</p>
+            <ul>
+              <li><strong>Anti-Locking:</strong> Mencegah kendala <i>"Database Locked"</i> saat multi-user mengedit dashboard.</li>
+              <li><strong>Durabilitas:</strong> Melindungi metadata dari kerusakan data jika server/Docker terhenti paksa.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <div class="card-title">
+              B.2 Optimasi Dataset & ClickHouse
+            </div>
+            <p>Konfigurasi visualisasi & siklus data langsung di level dataset dan ClickHouse Engine:</p>
+            <ul>
+              <li><strong>ReplacingMergeTree Engine:</strong> Mengatasi data transaksi yang sering berubah status (DML update).</li>
+              <li><strong>Calculated Columns:</strong> Tulis formula logika bisnis (misal total harga) sekali saja di SQL Dataset.</li>
+              <li><strong>Dataset Labeling:</strong> Mengubah field SQL kaku menjadi label ramah pengguna (contoh: <code>dtl_tr_id</code> &rarr; ID Transaksi).</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 11: TERIMA KASIH -->
+    <div class="slide">
+      <div class="slide-body thank-you-body">
+        <h1 class="thank-you-title">Terima Kasih</h1>
+        <p class="cover-sub">Laporan PoC BI: Evaluasi Apache Superset</p>
+        <p style="margin-top: 20px; font-size: 14px; color: var(--accent)">Pertanyaan & Diskusi Lanjutan Direkomendasikan</p>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="controls-bottom">
+    <div class="slide-number" id="slideNum">Slide 1 dari 11</div>
+    <div class="nav-buttons">
+      <button class="btn-nav" id="prevBtn" disabled>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+        Kembali
+      </button>
+      <button class="btn-nav" id="nextBtn">
+        Lanjut
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="progress-container">
+    <div class="progress-bar" id="progressBar"></div>
+  </div>
+
+  <script>
+    // State
+    let currentSlide = 0;
+    const slides = document.querySelectorAll('.slide');
+    const totalSlides = slides.length;
+    
+    // Elements
+    const prevBtn = document.getElementById('prevBtn');
+    const nextBtn = document.getElementById('nextBtn');
+    const slideNumEl = document.getElementById('slideNum');
+    const progressBar = document.getElementById('progressBar');
+    const themeBtn = document.getElementById('themeBtn');
+    const fullscreenBtn = document.getElementById('fullscreenBtn');
+    
+    // Update Slide UI
+    function updateSlide() {
+      slides.forEach((slide, idx) => {
+        if (idx === currentSlide) {
+          slide.classList.add('active');
+        } else {
+          slide.classList.remove('active');
+        }
+      });
+      
+      // Update Buttons
+      prevBtn.disabled = currentSlide === 0;
+      if (currentSlide === totalSlides - 1) {
+        nextBtn.innerHTML = `Selesai <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>`;
+      } else {
+        nextBtn.innerHTML = `Lanjut <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>`;
+      }
+      
+      // Update Slide Info
+      slideNumEl.textContent = `Slide ${currentSlide + 1} dari ${totalSlides}`;
+      
+      // Update Progress Bar
+      const percentage = ((currentSlide + 1) / totalSlides) * 100;
+      progressBar.style.width = `${percentage}%`;
+    }
+    
+    // Actions
+    function next() {
+      if (currentSlide < totalSlides - 1) {
+        currentSlide++;
+        updateSlide();
+      }
+    }
+    
+    function prev() {
+      if (currentSlide > 0) {
+        currentSlide--;
+        updateSlide();
+      }
+    }
+    
+    // Listeners
+    nextBtn.addEventListener('click', next);
+    prevBtn.addEventListener('click', prev);
+    
+    // Keyboard Navigation
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'Enter') {
+        next();
+      } else if (e.key === 'ArrowLeft' || e.key === 'Backspace') {
+        prev();
+      }
+    });
+    
+    // Theme Toggle
+    themeBtn.addEventListener('click', () => {
+      const html = document.documentElement;
+      const currentTheme = html.getAttribute('data-theme');
+      if (currentTheme === 'dark') {
+        html.setAttribute('data-theme', 'light');
+        themeBtn.textContent = '☀️';
+      } else {
+        html.setAttribute('data-theme', 'dark');
+        themeBtn.textContent = '🌙';
+      }
+    });
+    
+    // Fullscreen Toggle
+    fullscreenBtn.addEventListener('click', () => {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(err => {
+          console.error(`Gagal masuk layar penuh: ${err.message}`);
+        });
+        fullscreenBtn.textContent = '📴';
+      } else {
+        document.exitFullscreen();
+        fullscreenBtn.textContent = '🖥️';
+      }
+    });
+  </script>
+</body>
+</html>

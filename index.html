@@ -1,1461 +1,769 @@
 <!DOCTYPE html>
-<html lang="id" data-theme="light">
+<html lang="id">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Laporan PoC BI: Evaluasi Apache Superset</title>
-  <!-- Google Fonts Inter -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-  
-  <style>
-    /* CSS Variables & Theme definitions */
-    :root[data-theme="dark"] {
-      --bg-primary: #0b0f19;
-      --bg-secondary: #111827;
-      --bg-tertiary: #1f2937;
-      --card-bg: #161d30;
-      --card-border: rgba(99, 102, 241, 0.15);
-      --text-primary: #f3f4f6;
-      --text-secondary: #9ca3af;
-      --text-muted: #6b7280;
-      --accent-primary: #6366f1; /* Indigo */
-      --accent-secondary: #ec4899; /* Pink */
-      --accent-blue: #3b82f6;
-      --accent-emerald: #10b981;
-      --accent-amber: #f59e0b;
-      --accent-rose: #ef4444;
-      --sidebar-width: 280px;
-      --header-height: 70px;
-      --shadow: 0 4px 20px 0 rgba(0, 0, 0, 0.3);
-      --glass-bg: rgba(22, 29, 48, 0.8);
-      --glass-blur: blur(12px);
-    }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Laporan PoC BI: Evaluasi Apache Superset</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f4f5f7;
+  --surface:#fff;
+  --surface2:#f0f1f3;
+  --border:#d1d5db;
+  --text:#1f2937;
+  --text2:#6b7280;
+  --text3:#9ca3af;
+  --accent:#2563eb;
+  --accent2:#059669;
+  --accent3:#d97706;
+  --accent4:#dc2626;
+  --shadow:0 1px 3px rgba(0,0,0,.08),0 1px 2px rgba(0,0,0,.06);
+  --radius:8px;
+  --font:'Inter','Segoe UI',system-ui,sans-serif
+}
+[data-theme=dark]{
+  --bg:#0d1117;
+  --surface:#161b22;
+  --surface2:#21262d;
+  --border:#30363d;
+  --text:#e6edf3;
+  --text2:#8b949e;
+  --text3:#6e7681;
+  --accent:#58a6ff;
+  --accent2:#3fb950;
+  --accent3:#d29922;
+  --accent4:#f85149;
+  --shadow:0 1px 3px rgba(0,0,0,.3),0 1px 2px rgba(0,0,0,.2)
+}
+html{scroll-behavior:smooth}
+body{
+  font-family:var(--font);
+  background:var(--bg);
+  color:var(--text);
+  line-height:1.7;
+  font-size:15px
+}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+img{max-width:100%;display:block}
 
-    :root[data-theme="light"] {
-      --bg-primary: #f9fafb;
-      --bg-secondary: #ffffff;
-      --bg-tertiary: #f3f4f6;
-      --card-bg: #ffffff;
-      --card-border: rgba(79, 70, 229, 0.1);
-      --text-primary: #111827;
-      --text-secondary: #4b5563;
-      --text-muted: #9ca3af;
-      --accent-primary: #4f46e5;
-      --accent-secondary: #db2777;
-      --accent-blue: #2563eb;
-      --accent-emerald: #059669;
-      --accent-amber: #d97706;
-      --accent-rose: #dc2626;
-      --sidebar-width: 280px;
-      --header-height: 70px;
-      --shadow: 0 4px 20px 0 rgba(0, 0, 0, 0.05);
-      --glass-bg: rgba(255, 255, 255, 0.85);
-      --glass-blur: blur(12px);
-    }
+/* NAV */
+nav{
+  position:sticky;top:0;z-index:100;
+  background:var(--surface);
+  border-bottom:1px solid var(--border);
+  padding:0 24px;
+  display:flex;align-items:center;justify-content:space-between;
+  height:56px;
+  backdrop-filter:blur(8px);
+  background:rgba(255,255,255,.85)
+}
+[data-theme=dark] nav{background:rgba(22,27,34,.85)}
+.nav-brand{font-weight:700;font-size:15px;display:flex;align-items:center;gap:8px}
+.nav-links{display:flex;gap:4px;list-style:none;overflow-x:auto;scrollbar-width:none}
+.nav-links::-webkit-scrollbar{display:none}
+.nav-links a{
+  display:block;padding:6px 12px;border-radius:6px;
+  font-size:13px;font-weight:500;color:var(--text2);white-space:nowrap;
+  transition:all .15s
+}
+.nav-links a:hover,.nav-links a.active{background:var(--surface2);color:var(--text);text-decoration:none}
+#themeToggle{
+  background:none;border:1px solid var(--border);border-radius:6px;
+  padding:6px 10px;cursor:pointer;color:var(--text2);font-size:14px;
+  display:flex;align-items:center;gap:4px;transition:all .15s
+}
+#themeToggle:hover{border-color:var(--accent);color:var(--accent)}
 
-    /* Reset & Base Styles */
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-      scroll-behavior: smooth;
-    }
+/* LAYOUT */
+.container{max-width:960px;margin:0 auto;padding:40px 24px 80px}
 
-    body {
-      font-family: 'Inter', system-ui, -apple-system, sans-serif;
-      background-color: var(--bg-primary);
-      color: var(--text-primary);
-      line-height: 1.6;
-      transition: background-color 0.3s ease, color 0.3s ease;
-      display: flex;
-      min-height: 100vh;
-    }
+/* HERO */
+.hero{margin-bottom:48px}
+.hero .badge{
+  display:inline-block;padding:3px 10px;border-radius:20px;
+  font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;
+  background:var(--surface2);color:var(--text2);margin-bottom:12px
+}
+.hero h1{
+  font-size:32px;font-weight:800;letter-spacing:-.02em;
+  margin-bottom:8px;line-height:1.2
+}
+.hero p{color:var(--text2);font-size:16px;max-width:680px}
+.meta{display:flex;flex-wrap:wrap;gap:16px;margin-top:16px;font-size:13px;color:var(--text3)}
 
-    code {
-      font-family: Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', monospace;
-      font-size: 0.9em;
-      background-color: var(--bg-tertiary);
-      padding: 2px 6px;
-      border-radius: 4px;
-      color: var(--accent-secondary);
-    }
+/* SECTIONS */
+section{margin-bottom:48px;scroll-margin-top:72px}
+h2{
+  font-size:22px;font-weight:700;margin-bottom:16px;
+  display:flex;align-items:center;gap:10px
+}
+h2::before{
+  content:'';display:inline-block;width:4px;height:24px;
+  background:var(--accent);border-radius:2px;flex-shrink:0
+}
+h3{
+  font-size:17px;font-weight:600;margin-top:24px;margin-bottom:10px;
+  color:var(--accent)
+}
+h4{font-size:14px;font-weight:600;margin-bottom:6px;color:var(--text)}
+p{margin-bottom:14px;color:var(--text2)}
+p strong{color:var(--text)}
+code{
+  font-family:'JetBrains Mono','Fira Code',monospace;
+  font-size:.85em;background:var(--surface2);padding:1px 5px;
+  border-radius:4px;color:var(--accent)
+}
+pre code{display:block;padding:12px;overflow-x:auto;border:1px solid var(--border)}
 
-    pre code {
-      display: block;
-      padding: 1rem;
-      overflow-x: auto;
-      color: var(--text-primary);
-      border: 1px solid var(--card-border);
-    }
+/* CARDS */
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;margin-bottom:24px}
+.card{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+  padding:20px;box-shadow:var(--shadow);transition:all .2s
+}
+.card:hover{border-color:var(--accent);box-shadow:0 4px 12px rgba(37,99,235,.1)}
+.card-hd{font-weight:600;font-size:15px;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.card ul{list-style:none;padding:0}
+.card li{
+  position:relative;padding-left:16px;margin-bottom:6px;font-size:14px;color:var(--text2)
+}
+.card li::before{content:'';position:absolute;left:0;top:9px;width:6px;height:6px;border-radius:50%;background:var(--accent)}
 
-    /* Layout Components */
-    .sidebar {
-      width: var(--sidebar-width);
-      background-color: var(--bg-secondary);
-      border-right: 1px solid var(--card-border);
-      position: fixed;
-      top: 0;
-      bottom: 0;
-      left: 0;
-      z-index: 100;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-      padding: 2rem 1.5rem;
-      transition: transform 0.3s ease, background-color 0.3s ease, border-color 0.3s ease;
-    }
+/* BADGE COLORS */
+.bdg{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600}
+.bdg-r{background:rgba(220,38,38,.12);color:var(--accent4);border:1px solid rgba(220,38,38,.2)}
+.bdg-g{background:rgba(5,150,105,.12);color:var(--accent2);border:1px solid rgba(5,150,105,.2)}
+.bdg-y{background:rgba(217,119,6,.12);color:var(--accent3);border:1px solid rgba(217,119,6,.2)}
 
-    .sidebar-logo {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-      font-size: 1.25rem;
-      font-weight: 800;
-      background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      margin-bottom: 2rem;
-    }
+/* FLOW */
+.flow-wrap{
+  background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);
+  padding:16px 0;margin:16px 0;overflow-x:auto;text-align:center
+}
+.flow-wrap strong{display:block;margin-bottom:12px;font-size:13px;color:var(--text2)}
+.flow-row{display:inline-flex;align-items:center;gap:10px;padding:4px 16px;min-width:max-content}
+.flow-node{
+  background:var(--surface);border:1px solid var(--border);border-radius:6px;
+  padding:8px 12px;text-align:center;font-weight:600;font-size:13px;
+  min-width:120px;box-shadow:0 1px 4px rgba(0,0,0,.06)
+}
+.flow-node.hl{border-color:var(--accent);box-shadow:0 0 0 2px rgba(37,99,235,.15)}
+.flow-label{display:block;font-size:10px;font-weight:400;color:var(--text3);margin-top:3px}
+.flow-arrow{color:var(--text3);font-size:16px;font-weight:700}
+.flow-arrow::after{content:'\2192'}
 
-    .nav-menu {
-      list-style: none;
-      display: flex;
-      flex-direction: column;
-      gap: 0.5rem;
-      flex-grow: 1;
-    }
+/* TABLES */
+.tbl-wrap{overflow-x:auto;margin:16px 0;border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow)}
+table{width:100%;border-collapse:collapse;font-size:14px;background:var(--surface)}
+th{background:var(--surface2);padding:10px 12px;font-weight:600;text-align:left;border-bottom:2px solid var(--border);font-size:13px}
+td{padding:10px 12px;border-bottom:1px solid var(--border);color:var(--text2);vertical-align:top}
+tr:hover td{background:var(--surface2)}
 
-    .nav-item a {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-      padding: 0.75rem 1rem;
-      color: var(--text-secondary);
-      text-decoration: none;
-      border-radius: 8px;
-      font-size: 0.95rem;
-      font-weight: 500;
-      transition: all 0.2s ease;
-    }
+/* ALERT */
+.alert{
+  background:rgba(217,119,6,.06);border:1px solid rgba(217,119,6,.2);
+  border-left:3px solid var(--accent3);border-radius:var(--radius);
+  padding:14px 16px;margin:16px 0;font-size:14px;color:var(--text2)
+}
+.alert strong{color:var(--text)}
 
-    .nav-item a:hover, .nav-item.active a {
-      color: var(--text-primary);
-      background-color: var(--bg-tertiary);
-      border-left: 4px solid var(--accent-primary);
-    }
+/* TABS */
+.tab-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:24px}
+.tab-hd{display:flex;border-bottom:1px solid var(--border);background:var(--surface2)}
+.tab-btn{
+  flex:1;padding:10px 16px;border:none;background:none;cursor:pointer;
+  font-weight:600;font-size:13px;color:var(--text2);
+  transition:all .15s;border-bottom:2px solid transparent
+}
+.tab-btn:hover{color:var(--text);background:rgba(37,99,235,.03)}
+.tab-btn.on{color:var(--accent);border-bottom-color:var(--accent);background:var(--surface)}
+.tab-pane{display:none;padding:20px}
+.tab-pane.on{display:block}
 
-    .theme-toggle-btn {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 0.5rem;
-      padding: 0.75rem;
-      border-radius: 8px;
-      border: 1px solid var(--card-border);
-      background-color: var(--bg-tertiary);
-      color: var(--text-primary);
-      cursor: pointer;
-      font-weight: 600;
-      font-size: 0.9rem;
-      transition: all 0.2s ease;
-    }
+/* SILO GRID */
+.silo-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:12px}
+.silo{
+  border:1px solid var(--border);padding:10px 12px;border-radius:6px;background:var(--surface2);
+  font-size:13px
+}
+.silo h4{font-size:12px;font-weight:600;margin:0 0 6px 0;padding-bottom:4px;border-bottom:1px solid var(--border)}
+.silo ul{list-style:none;padding:0;margin:0}
+.silo li{margin-bottom:4px;font-size:12px;color:var(--text2);line-height:1.4}
+.silo li code{font-size:11px}
 
-    .theme-toggle-btn:hover {
-      border-color: var(--accent-primary);
-      box-shadow: 0 0 10px rgba(99, 102, 241, 0.2);
-    }
-
-    /* Main Content Area */
-    .main-wrapper {
-      margin-left: var(--sidebar-width);
-      flex-grow: 1;
-      padding: 2rem 3rem;
-      max-width: 1200px;
-      transition: margin-left 0.3s ease;
-      min-width: 0; /* Prevents parent flexbox stretching */
-    }
-
-    header {
-      margin-bottom: 3rem;
-      border-bottom: 1px solid var(--card-border);
-      padding-bottom: 1.5rem;
-    }
-
-    .header-badge {
-      display: inline-block;
-      padding: 0.25rem 0.75rem;
-      background: linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(236, 72, 153, 0.15));
-      border: 1px solid var(--card-border);
-      border-radius: 50px;
-      color: var(--accent-primary);
-      font-size: 0.8rem;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      margin-bottom: 1rem;
-    }
-
-    h1 {
-      font-size: 2.5rem;
-      font-weight: 800;
-      margin-bottom: 0.5rem;
-      letter-spacing: -0.02em;
-      background: linear-gradient(135deg, var(--text-primary) 50%, var(--accent-primary));
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-    }
-
-    .subtitle {
-      color: var(--text-secondary);
-      font-size: 1.1rem;
-      margin-bottom: 1rem;
-    }
-
-    .meta-grid {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 1.5rem;
-      font-size: 0.85rem;
-      color: var(--text-muted);
-    }
-
-    .meta-item {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-    }
-
-    .meta-item svg {
-      width: 16px;
-      height: 16px;
-      fill: currentColor;
-    }
-
-    /* Typography & Sections */
-    section {
-      margin-bottom: 4rem;
-      scroll-margin-top: 2rem;
-    }
-
-    h2 {
-      font-size: 1.8rem;
-      font-weight: 700;
-      margin-bottom: 1.5rem;
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-      border-left: 5px solid var(--accent-primary);
-      padding-left: 0.75rem;
-    }
-
-    h3 {
-      font-size: 1.3rem;
-      font-weight: 600;
-      margin-top: 1.5rem;
-      margin-bottom: 1rem;
-      color: var(--text-primary);
-    }
-
-    p {
-      color: var(--text-secondary);
-      margin-bottom: 1.25rem;
-      font-size: 1rem;
-    }
-
-    /* Cards System */
-    .card-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-      gap: 1.5rem;
-      margin-bottom: 2rem;
-    }
-
-    .card {
-      background-color: var(--card-bg);
-      border: 1px solid var(--card-border);
-      border-radius: 12px;
-      padding: 1.5rem;
-      box-shadow: var(--shadow);
-      transition: all 0.3s ease;
-      position: relative;
-      overflow: hidden;
-    }
-
-    .card:hover {
-      transform: translateY(-4px);
-      border-color: var(--accent-primary);
-      box-shadow: 0 10px 30px rgba(99, 102, 241, 0.1);
-    }
-
-    .card-header {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-      margin-bottom: 1rem;
-      font-weight: 700;
-      font-size: 1.1rem;
-    }
-
-    .card-icon {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      width: 36px;
-      height: 36px;
-      border-radius: 8px;
-      background-color: rgba(99, 102, 241, 0.1);
-      color: var(--accent-primary);
-    }
-
-    .card ul {
-      list-style-type: none;
-      padding-left: 0;
-    }
-
-    .card li {
-      position: relative;
-      padding-left: 1.5rem;
-      margin-bottom: 0.75rem;
-      font-size: 0.95rem;
-      color: var(--text-secondary);
-    }
-
-    .card li::before {
-      content: "•";
-      color: var(--accent-primary);
-      font-weight: bold;
-      font-size: 1.25rem;
-      position: absolute;
-      left: 0.5rem;
-      top: -0.15rem;
-    }
-
-    /* Alert / Warning Boxes */
-    .alert-box {
-      background: linear-gradient(135deg, rgba(245, 158, 11, 0.08), rgba(239, 68, 68, 0.08));
-      border: 1px solid rgba(245, 158, 11, 0.25);
-      border-left: 4px solid var(--accent-amber);
-      border-radius: 8px;
-      padding: 1.25rem 1.5rem;
-      margin: 1.5rem 0;
-      color: var(--text-secondary);
-    }
-
-    .alert-box-header {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-      font-weight: 700;
-      color: var(--text-primary);
-      margin-bottom: 0.5rem;
-    }
-
-    /* Comparison Tabs */
-    .tab-container {
-      background-color: var(--bg-secondary);
-      border: 1px solid var(--card-border);
-      border-radius: 12px;
-      overflow: hidden;
-      margin-bottom: 2.5rem;
-      box-shadow: var(--shadow);
-    }
-
-    .tabs {
-      display: flex;
-      border-bottom: 1px solid var(--card-border);
-      background-color: var(--bg-tertiary);
-    }
-
-    .tab-btn {
-      flex: 1;
-      padding: 1rem;
-      border: none;
-      background: none;
-      color: var(--text-secondary);
-      font-weight: 600;
-      font-size: 1rem;
-      cursor: pointer;
-      transition: all 0.2s ease;
-      outline: none;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 0.5rem;
-    }
-
-    .tab-btn:hover {
-      color: var(--text-primary);
-      background-color: rgba(99, 102, 241, 0.05);
-    }
-
-    .tab-btn.active {
-      color: var(--accent-primary);
-      border-bottom: 3px solid var(--accent-primary);
-      background-color: var(--bg-secondary);
-    }
-
-    .tab-content {
-      padding: 2rem;
-      display: none;
-      animation: fadeIn 0.4s ease;
-    }
-
-    .tab-content.active {
-      display: block;
-    }
-
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(10px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-
-    /* Diagrams & Architecture Flows */
-    .flow-diagram {
-      background-color: var(--bg-tertiary);
-      border: 1px solid var(--card-border);
-      border-radius: 8px;
-      padding: 1.5rem 0;
-      margin: 1.5rem 0;
-      overflow-x: auto;
-      width: 100%;
-      max-width: 100%;
-      text-align: center;
-    }
-
-    .flow-row {
-      display: inline-flex;
-      align-items: center;
-      gap: 1.25rem;
-      padding: 0.5rem 1.5rem;
-      min-width: max-content;
-      text-align: left;
-    }
-
-    .flow-node {
-      background-color: var(--card-bg);
-      border: 1px solid var(--card-border);
-      border-radius: 6px;
-      padding: 0.75rem 1rem;
-      text-align: center;
-      font-weight: 600;
-      min-width: 140px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-      font-size: 0.9rem;
-      position: relative;
-    }
-
-    .flow-node.highlight {
-      border-color: var(--accent-primary);
-      box-shadow: 0 0 10px rgba(99, 102, 241, 0.2);
-    }
-
-    .flow-arrow {
-      color: var(--text-muted);
-      font-size: 1.2rem;
-      font-weight: bold;
-    }
-
-    .flow-label {
-      font-size: 0.75rem;
-      color: var(--text-muted);
-      display: block;
-      margin-top: 0.25rem;
-      font-weight: 400;
-    }
-
-    /* Comparison Matrix Table */
-    .table-container {
-      overflow-x: auto;
-      margin: 2rem 0;
-      border: 1px solid var(--card-border);
-      border-radius: 12px;
-      box-shadow: var(--shadow);
-    }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      background-color: var(--bg-secondary);
-      text-align: left;
-      font-size: 0.95rem;
-    }
-
-    th {
-      background-color: var(--bg-tertiary);
-      color: var(--text-primary);
-      padding: 1rem;
-      font-weight: 700;
-      border-bottom: 2px solid var(--card-border);
-    }
-
-    td {
-      padding: 1rem;
-      color: var(--text-secondary);
-      border-bottom: 1px solid var(--card-border);
-      vertical-align: top;
-    }
-
-    tr:hover td {
-      background-color: rgba(99, 102, 241, 0.02);
-    }
-
-    .badge {
-      display: inline-block;
-      padding: 0.15rem 0.5rem;
-      border-radius: 4px;
-      font-size: 0.75rem;
-      font-weight: 600;
-    }
-
-    .badge-heavy {
-      background-color: rgba(239, 68, 68, 0.15);
-      color: var(--accent-rose);
-      border: 1px solid rgba(239, 68, 68, 0.25);
-    }
-
-    .badge-light {
-      background-color: rgba(16, 185, 129, 0.15);
-      color: var(--accent-emerald);
-      border: 1px solid rgba(16, 185, 129, 0.25);
-    }
-
-    .badge-medium {
-      background-color: rgba(245, 158, 11, 0.15);
-      color: var(--accent-amber);
-      border: 1px solid rgba(245, 158, 11, 0.25);
-    }
-
-    /* Mobile Nav Burger Menu Toggle */
-    .mobile-header {
-      display: none;
-      height: var(--header-height);
-      background-color: var(--bg-secondary);
-      border-bottom: 1px solid var(--card-border);
-      align-items: center;
-      justify-content: space-between;
-      padding: 0 1.5rem;
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      z-index: 101;
-    }
-
-    .menu-toggle {
-      background: none;
-      border: none;
-      color: var(--text-primary);
-      cursor: pointer;
-      padding: 0.5rem;
-      display: flex;
-      align-items: center;
-    }
-
-    /* Responsive Styles */
-    @media (max-width: 1024px) {
-      .sidebar {
-        transform: translateX(-100%);
-      }
-      .sidebar.open {
-        transform: translateX(0);
-      }
-      .main-wrapper {
-        margin-left: 0;
-        padding: 5rem 1.5rem 2rem 1.5rem;
-      }
-      .mobile-header {
-        display: flex;
-      }
-    }
-
-    /* Print styling */
-    @media print {
-      body {
-        background: white !important;
-        color: black !important;
-      }
-      .sidebar, .mobile-header, .theme-toggle-btn {
-        display: none !important;
-      }
-      .main-wrapper {
-        margin-left: 0 !important;
-        padding: 0 !important;
-        max-width: 100% !important;
-      }
-      .card {
-        page-break-inside: avoid;
-        border: 1px solid #ddd !important;
-        background: transparent !important;
-        box-shadow: none !important;
-      }
-      .tab-content {
-        display: block !important;
-        opacity: 1 !important;
-        transform: none !important;
-        page-break-before: always;
-      }
-      .tabs {
-        display: none !important;
-      }
-      h1, h2, h3 {
-        color: black !important;
-        background: none !important;
-        -webkit-text-fill-color: initial !important;
-      }
-    }
-  </style>
+/* RESPONSIVE */
+.hamburger{display:none;background:none;border:none;cursor:pointer;padding:6px;color:var(--text)}
+@media(max-width:768px){
+  .nav-links{display:none;position:absolute;top:56px;left:0;right:0;
+    background:var(--surface);border-bottom:1px solid var(--border);
+    flex-direction:column;padding:8px;gap:2px
+  }
+  .nav-links.open{display:flex}
+  .hamburger{display:flex}
+  .hero h1{font-size:24px}
+  .container{padding:24px 16px 60px}
+  .grid{grid-template-columns:1fr}
+}
+@media print{
+  nav{display:none}
+  body{background:#fff!important;color:#000!important}
+  .card,.tab-pane{page-break-inside:avoid;border:1px solid #ccc!important;box-shadow:none!important}
+  .tab-pane{display:block!important}
+  .tab-hd{display:none!important}
+}
+</style>
 </head>
 <body>
 
-  <!-- Mobile Header -->
-  <div class="mobile-header">
-    <div class="sidebar-logo" style="margin-bottom: 0;">
-      <svg style="width: 24px; height: 24px; fill: var(--accent-primary);" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-2 10h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/></svg>
-      PoC BI: Apache Superset
-    </div>
-    <button class="menu-toggle" id="menuToggle" aria-label="Toggle Menu">
-      <svg style="width: 28px; height: 28px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+<nav>
+  <div class="nav-brand">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18"/></svg>
+    PoC BI: Apache Superset
+  </div>
+  <ul class="nav-links" id="navLinks">
+    <li><a href="#pendahuluan" class="on">Pendahuluan</a></li>
+    <li><a href="#konsep1">Konsep 1</a></li>
+    <li><a href="#konsep2">Konsep 2</a></li>
+    <li><a href="#perbandingan">Perbandingan</a></li>
+    <li><a href="#estimasi">Estimasi</a></li>
+    <li><a href="#vs-powerbi">vs Power BI</a></li>
+    <li><a href="#rekomendasi">Rekomendasi</a></li>
+  </ul>
+  <div style="display:flex;align-items:center;gap:8px">
+    <button class="hamburger" id="hamBtn" aria-label="Menu">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+    </button>
+    <button id="themeToggle">
+      <span id="themeIcon">&#9790;</span>
     </button>
   </div>
+</nav>
 
-  <!-- Sidebar Navigation -->
-  <aside class="sidebar" id="sidebar">
-    <div>
-      <div class="sidebar-logo">
-        <svg style="width: 28px; height: 28px; fill: var(--accent-primary);" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-2 10h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/></svg>
-        <span>PoC BI</span>
-      </div>
-      <ul class="nav-menu">
-        <li class="nav-item active"><a href="#pendahuluan">1. Pendahuluan</a></li>
-        <li class="nav-item"><a href="#konsep1">2. Konsep 1 (Enterprise)</a></li>
-        <li class="nav-item"><a href="#konsep2">3. Konsep 2 (Minimalis)</a></li>
-        <li class="nav-item"><a href="#perbandingan">4. Matriks Perbandingan</a></li>
-        <li class="nav-item"><a href="#estimasi-resource">5. Estimasi Resource</a></li>
-        <li class="nav-item"><a href="#superset-vs-powerbi">6. Superset vs Power BI</a></li>
-        <li class="nav-item"><a href="#rekomendasi">7. Rekomendasi Final</a></li>
-      </ul>
+<div class="container">
+
+  <!-- HERO -->
+  <div class="hero">
+    <div class="badge">Evaluasi Infrastruktur Data</div>
+    <h1>Laporan PoC BI: Evaluasi Apache Superset</h1>
+    <p>Analisis Operasional Infrastruktur, Keamanan, Manajemen Storage, dan Rekomendasi Optimasi Praktis</p>
+    <div class="meta">
+      <span>11 Juni 2026</span>
+      <span>Status: Evaluasi Selesai</span>
+      <span>Penulis: Analis Antigravity</span>
     </div>
-    
-    <button class="theme-toggle-btn" id="themeToggle">
-      <svg id="themeIcon" style="width: 20px; height: 20px; fill: currentColor;" viewBox="0 0 24 24"><path d="M12 3c.132 0 .263 0 .393.007a7.5 7.5 0 0 0 7.92 12.446A9 9 0 1 1 12 2.992z"/></svg>
-      <span id="themeText">Dark Mode</span>
-    </button>
-  </aside>
-
-  <!-- Main Content Wrapper -->
-  <div class="main-wrapper">
-    <header>
-      <span class="header-badge">Evaluasi Infrastruktur Data</span>
-      <h1>Laporan PoC BI: Evaluasi Apache Superset</h1>
-      <p class="subtitle">Analisis Operasional Infrastruktur, Keamanan, Manajemen Storage, dan Rekomendasi Optimasi Praktis</p>
-      
-      <div class="meta-grid">
-        <div class="meta-item">
-          <svg viewBox="0 0 24 24"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11z"/></svg>
-          <span>11 Juni 2026</span>
-        </div>
-        <div class="meta-item">
-          <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
-          <span>Status: Evaluasi Selesai</span>
-        </div>
-        <div class="meta-item">
-          <svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
-          <span>Penulis: Analis Antigravity</span>
-        </div>
-      </div>
-    </header>
-
-    <!-- Section 1: Pendahuluan -->
-    <section id="pendahuluan">
-      <h2>1. Pendahuluan: Apache Superset</h2>
-      <p>
-        <strong>Apache Superset</strong> adalah platform visualisasi data modern, cepat, dan tangguh yang digunakan untuk menampilkan data mentah maupun data olahan dalam bentuk dashboard dan grafik interaktif. Dengan dukungan konektivitas database yang luas melalui SQLAlchemy, Superset menjadi pilihan utama untuk operasional Business Intelligence (BI) yang fleksibel.
-      </p>
-
-      <div class="card-grid">
-        <div class="card">
-          <div class="card-header">
-            <div class="card-icon">
-              <svg style="width: 20px; height: 20px; fill: currentColor;" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm2.07-7.75l-.9.92C13.45 12.9 13 13.5 13 15h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H7c0-2.76 2.24-5 5-5s5 2.24 5 5c0 1.04-.42 1.99-1.07 2.75z"/></svg>
-            </div>
-            <span>Eksplorasi & Query Data</span>
-          </div>
-          <ul>
-            <li><strong>SQL Lab:</strong> IDE query interaktif untuk merancang query SQL mentah langsung ke database.</li>
-            <li><strong>Query to Dataset:</strong> Mengubah hasil analisis SQL Lab secara langsung menjadi dataset siap pakai.</li>
-            <li><strong>Upload Data CSV:</strong> Kemampuan import file data lokal langsung ke penyimpanan database yang terkoneksi.</li>
-          </ul>
-        </div>
-
-        <div class="card">
-          <div class="card-header">
-            <div class="card-icon">
-              <svg style="width: 20px; height: 20px; fill: currentColor;" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
-            </div>
-            <span>Akses & Pembagian Kolaborasi</span>
-          </div>
-          <ul>
-            <li><strong>Keamanan Granular:</strong> Pembagian dashboard, chart, dataset, dan koneksi berdasarkan User, Role, maupun Group.</li>
-            <li><strong>Embedding & Sharing:</strong> Export chart menjadi embeddable iframe serta berbagi tautan dashboard berizin khusus.</li>
-            <li><strong>Export Format:</strong> Mengunduh data hasil visualisasi ke CSV/Excel dan dashboard/chart utuh menjadi Image (PNG) atau PDF.</li>
-          </ul>
-        </div>
-      </div>
-    </section>
-
-    <!-- Section 2 & 3: Tabs Container for Concept 1 & 2 -->
-    <section id="konsep-arsitektur">
-      <h2>Pilihan Konsep Arsitektur</h2>
-      <p>Berikut adalah dua rancangan konsep arsitektur yang dievaluasi untuk kebutuhan PoC maupun deployment di server produksi.</p>
-      
-      <div class="tab-container">
-        <div class="tabs">
-          <button class="tab-btn active" onclick="switchTab(event, 'tab-konsep1')">
-            <svg style="width: 20px; height: 20px; fill: currentColor;" viewBox="0 0 24 24"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H8V4h12v12z"/></svg>
-            Konsep 1: Enterprise Full-Stack
-          </button>
-          <button class="tab-btn" onclick="switchTab(event, 'tab-konsep2')">
-            <svg style="width: 20px; height: 20px; fill: currentColor;" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14z"/></svg>
-            Konsep 2: Minimalist Setup
-          </button>
-        </div>
-
-        <!-- Konsep 1 Content -->
-        <div id="tab-konsep1" class="tab-content active">
-          <div class="header-badge" style="background: rgba(239, 68, 68, 0.1); color: var(--accent-rose); border-color: rgba(239, 68, 68, 0.2);">Heavyweight Architecture</div>
-          <h3>2. Konsep 1: Enterprise Full-Stack (Heavyweight)</h3>
-          <p>
-            Konsep 1 dirancang untuk ekosistem skala besar dengan kebutuhan sinkronisasi otomatis CDC (<em>Change Data Capture</em>), <em>semantic layer</em> tersentralisasi, dan caching asinkron.
-          </p>
-
-          <div class="flow-diagram">
-            <strong style="display: block; margin-bottom: 1rem;">Data Pipeline & Caching Flow (Konsep 1)</strong>
-            <div class="flow-row">
-              <div class="flow-node">
-                PostgreSQL (OLTP)
-                <span class="flow-label">Sumber Transaksional</span>
-              </div>
-              <div class="flow-arrow">➔</div>
-              <div class="flow-node highlight">
-                PeerDB (ETL/CDC)
-                <span class="flow-label">Staging via MinIO</span>
-              </div>
-              <div class="flow-arrow">➔</div>
-              <div class="flow-node">
-                ClickHouse
-                <span class="flow-label">OLAP Store</span>
-              </div>
-              <div class="flow-arrow">➔</div>
-              <div class="flow-node highlight">
-                Cube.js
-                <span class="flow-label">Semantic Layer</span>
-              </div>
-              <div class="flow-arrow">➔</div>
-              <div class="flow-node">
-                Superset (BI)
-                <span class="flow-label">Celery, Redis & Postgres</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="card-grid">
-            <div class="card">
-              <div class="card-header" style="color: var(--accent-emerald);">
-                <span style="font-size: 1.25rem;">✓</span> Kelebihan & Justifikasi
-              </div>
-              <ul>
-                <li><strong>Multi-BI Compatibility:</strong> Adanya Cube.js sebagai <em>global semantic layer</em> membantu agar definisi labeling data dan logika metrik terpusat dapat diakses bersamaan oleh Superset, PowerBI, Tableau, dll.</li>
-                <li><strong>Otomatisasi CDC:</strong> PeerDB mempermudah sinkronisasi data dari database utama (OLTP) ke database analitis (OLAP ClickHouse) secara visual dengan minim penulisan kode ETL manual.</li>
-                <li><strong>Caching yang Kuat:</strong> Redis dan Celery menangani query secara asinkron untuk membantu mengurangi risiko UI Superset mengalami hambatan/freeze.</li>
-                <li><strong>Solusi CDC & data masif:</strong> Sangat direkomendasikan jika terdapat kebutuhan <strong>CDC (Change Data Capture) semi-instan</strong> untuk menangani volume data transaksional yang masif dari OLTP ke OLAP secara efisien tanpa menurunkan performa database transaksional.</li>
-                <li><strong>Solusi Comprehensive Terintegrasi:</strong> Pilihan tepat jika di internal organisasi <strong>belum memiliki infrastruktur BI, pipeline ETL, maupun sistem CDC</strong> yang sudah terpasang (inplace), sehingga memerlukan satu kesatuan arsitektur solusi yang menyeluruh dan langsung terintegrasi dari hulu ke hilir.</li>
-              </ul>
-            </div>
-
-            <div class="card">
-              <div class="card-header" style="color: var(--accent-rose);">
-                <span style="font-size: 1.25rem;">✗</span> Kekurangan & Tantangan
-              </div>
-              <ul>
-                <li><strong>Kerentanan Lonjakan Resource (Spikes):</strong> Pemakaian RAM dasar sebenarnya tidak terlalu besar, namun rawan kehabisan resource RAM & CPU secara ekstrem pada spesifikasi device lokal (seperti Intel i3-1115G4 dan RAM 8GB) ketika terjadi aktivitas bersamaan (proses ETL sinkronisasi berjalan saat user memuat dashboard).</li>
-                <li><strong>Beban I/O Disk Tinggi:</strong> Pre-aggregations Cube.js memerlukan penyimpanan hasil agregasi ke database, meningkatkan operasi baca-tulis disk secara intensif.</li>
-                <li><strong>Kompleksitas Pemeliharaan (Moving Parts):</strong> Banyaknya modul independen yang berjalan bersamaan (caching, queue, semantic layer, ETL) meningkatkan potensi kegagalan sistem dan membutuhkan monitoring yang ketat.</li>
-              </ul>
-            </div>
-          </div>
-
-          <div class="card" style="margin-top: 2.5rem;">
-            <div class="card-header" style="color: var(--accent-primary);">
-              <div class="card-icon" style="background-color: rgba(99, 102, 241, 0.1); color: var(--accent-primary);">
-                <svg style="width: 20px; height: 20px; fill: currentColor;" viewBox="0 0 24 24"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H8V4h12v12z"/></svg>
-              </div>
-              <span>Daftar Container Docker - Konsep 1 (Fitur Lengkap / Full-Feature)</span>
-            </div>
-            
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1rem; margin-top: 1.25rem;">
-              <!-- Silo 1: BI & Analytics -->
-              <div style="border: 1px solid var(--card-border); padding: 0.75rem; border-radius: 8px; background-color: var(--bg-secondary);">
-                <h4 style="margin: 0 0 0.5rem 0; color: var(--accent-primary); font-size: 0.9rem; border-bottom: 1px solid var(--card-border); padding-bottom: 0.25rem;">1. BI & Analytics (Superset)</h4>
-                <ul style="list-style: none; padding: 0; margin: 0; font-size: 0.8rem; line-height: 1.4;">
-                  <li style="margin-bottom: 0.35rem;"><code>superset-app</code> <span style="color: var(--text-secondary);"><br>Aplikasi utama / Web UI eksplorasi data & visualisasi dashboard. Menggunakan database metadata PostgreSQL eksternal untuk melayani ribuan kueri UI.</span></li>
-                  <li style="margin-bottom: 0.35rem;"><code>superset-init</code> <span style="color: var(--text-secondary);"><br>Inisialisasi metadata awal database, pembuatan admin, skema tabel internal, & role default saat sistem dinyalakan pertama kali.</span></li>
-                </ul>
-              </div>
-
-              <!-- Silo 2: Caching & Queue -->
-              <div style="border: 1px solid var(--card-border); padding: 0.75rem; border-radius: 8px; background-color: var(--bg-secondary);">
-                <h4 style="margin: 0 0 0.5rem 0; color: var(--accent-amber); font-size: 0.9rem; border-bottom: 1px solid var(--card-border); padding-bottom: 0.25rem;">2. Caching & Tasks</h4>
-                <ul style="list-style: none; padding: 0; margin: 0; font-size: 0.8rem; line-height: 1.4;">
-                  <li style="margin-bottom: 0.35rem;"><code>redis</code> <span style="color: var(--text-secondary);"><br>Cache memori metadata chart & broker kueri asinkron untuk meminimalkan beban kueri langsung ke database analitis.</span></li>
-                  <li style="margin-bottom: 0.35rem;"><code>celery-worker</code> <span style="color: var(--text-secondary);"><br>Worker pengeksekusi kueri analitis berat di latar belakang agar antarmuka browser Superset tidak membeku/freeze.</span></li>
-                  <li style="margin-bottom: 0.35rem;"><code>celery-beat</code> <span style="color: var(--text-secondary);"><br>Scheduler kueri berkala & pemicu rendering visualisasi otomatis untuk pengiriman laporan dashboard terjadwal.</span></li>
-                </ul>
-              </div>
-
-              <!-- Silo 3: Semantic Layer -->
-              <div style="border: 1px solid var(--card-border); padding: 0.75rem; border-radius: 8px; background-color: var(--bg-secondary);">
-                <h4 style="margin: 0 0 0.5rem 0; color: var(--accent-secondary); font-size: 0.9rem; border-bottom: 1px solid var(--card-border); padding-bottom: 0.25rem;">3. Semantic (Cube)</h4>
-                <ul style="list-style: none; padding: 0; margin: 0; font-size: 0.8rem; line-height: 1.4;">
-                  <li style="margin-bottom: 0.35rem;"><code>cube-core</code> <span style="color: var(--text-secondary);"><br>OLAP Cube server untuk menyatukan standar definisi metrik bisnis dan caching pre-aggregations tingkat lanjut di atas ClickHouse.</span></li>
-                </ul>
-              </div>
-
-              <!-- Silo 4: Data Pipeline -->
-              <div style="border: 1px solid var(--card-border); padding: 0.75rem; border-radius: 8px; background-color: var(--bg-secondary);">
-                <h4 style="margin: 0 0 0.5rem 0; color: var(--accent-blue); font-size: 0.9rem; border-bottom: 1px solid var(--card-border); padding-bottom: 0.25rem;">4. Pipeline & CDC (PeerDB)</h4>
-                <ul style="list-style: none; padding: 0; margin: 0; font-size: 0.8rem; line-height: 1.4;">
-                  <li style="margin-bottom: 0.35rem;"><code>peerdb-ui</code> & <code>server</code> <span style="color: var(--text-secondary);"><br>UI manajemen visual & core engine replikasi data CDC real-time dari log transaksi OLTP ke database OLAP ClickHouse.</span></li>
-                  <li style="margin-bottom: 0.35rem;"><code>flow-worker</code> & <code>snapshot</code> <span style="color: var(--text-secondary);"><br>Worker sinkronisasi data perubahan real-time & dump inisialisasi awal massal data historis lama.</span></li>
-                  <li style="margin-bottom: 0.35rem;"><code>flow-api</code> <span style="color: var(--text-secondary);"><br>Penyedia REST API untuk manajemen programmatic status replikasi data.</span></li>
-                </ul>
-              </div>
-
-              <!-- Silo 5: Database & Storage -->
-              <div style="border: 1px solid var(--card-border); padding: 0.75rem; border-radius: 8px; background-color: var(--bg-secondary);">
-                <h4 style="margin: 0 0 0.5rem 0; color: var(--accent-emerald); font-size: 0.9rem; border-bottom: 1px solid var(--card-border); padding-bottom: 0.25rem;">5. Database & Storage</h4>
-                <ul style="list-style: none; padding: 0; margin: 0; font-size: 0.8rem; line-height: 1.4;">
-                  <li style="margin-bottom: 0.35rem;"><code>clickhouse-server</code> <span style="color: var(--text-secondary);"><br>Database OLAP analitis berkinerja tinggi (columnar storage) yang mengekstrak data dari tabel agregat/flat tables secara instan.</span></li>
-                  <li style="margin-bottom: 0.35rem;"><code>postgres</code> <span style="color: var(--text-secondary);"><br>Database metadata internal untuk konfigurasi dasbor, visualisasi chart, RBAC user, dan integrasi internal.</span></li>
-                  <li style="margin-bottom: 0.35rem;"><code>minio</code> <span style="color: var(--text-secondary);"><br>Storage staging lokal penampung file CSV temporal untuk optimasi pemuatan data bulk copy sebelum dimasukkan ke ClickHouse.</span></li>
-                </ul>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Konsep 2 Content -->
-        <div id="tab-konsep2" class="tab-content">
-          <div class="header-badge" style="background: rgba(16, 185, 129, 0.1); color: var(--accent-emerald); border-color: rgba(16, 185, 129, 0.2);">Lightweight Architecture</div>
-          <h3>3. Konsep 2: Minimalist Setup (Lightweight)</h3>
-          <p>
-            Konsep 2 memotong seluruh komponen perantara untuk menghadirkan kecepatan setup, efisiensi resource device lokal, dan kemudahan pemeliharaan.
-          </p>
-
-          <div class="flow-diagram">
-            <strong style="display: block; margin-bottom: 1rem;">Data Pipeline & Caching Flow (Konsep 2)</strong>
-            <div class="flow-row">
-              <div class="flow-node">
-                Data Source (OLTP)
-              </div>
-              <div class="flow-arrow">➔</div>
-              <div class="flow-node highlight">
-                Custom Script / Python Job
-                <span class="flow-label">Direct Bulk Load</span>
-              </div>
-              <div class="flow-arrow">➔</div>
-              <div class="flow-node">
-                ClickHouse
-                <span class="flow-label">OLAP (Ready Table)</span>
-              </div>
-              <div class="flow-arrow">➔</div>
-              <div class="flow-node highlight">
-                Superset (BI)
-                <span class="flow-label">SQLite Local DB</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="card-grid">
-            <div class="card">
-              <div class="card-header" style="color: var(--accent-emerald);">
-                <span style="font-size: 1.25rem;">✓</span> Kelebihan & Justifikasi
-              </div>
-              <ul>
-                <li><strong>Sangat Ringan:</strong> Hanya membutuhkan 2 container utama setelah inisialisasi. Cenderung lebih stabil berjalan di device berspesifikasi rendah dengan risiko crash yang lebih rendah.</li>
-                <li><strong>Mudah Di-maintain:</strong> Lebih sedikit bagian bergerak (<em>moving parts</em>) membantu meminimalkan potensi kegagalan sistem.</li>
-                <li><strong>Query Cepat:</strong> ClickHouse melakukan kompresi data kolom secara agresif, membantu mempercepat eksekusi query analitis dibanding database relasional biasa.</li>
-              </ul>
-            </div>
-
-            <div class="card">
-              <div class="card-header" style="color: var(--accent-rose);">
-                <span style="font-size: 1.25rem;">✗</span> Kerentanan Sistem Nyata
-              </div>
-              <ul>
-                <li><strong>Database SQLite Locked:</strong> Menggunakan database SQLite lokal bawaan Superset. Jika beberapa user mengakses/mengedit dashboard bersamaan, transaksi SQL rentan terblokir (<em>locked</em>).</li>
-                <li><strong>UI Freeze & Timeout:</strong> Tanpa Redis/Celery, query berat dari ClickHouse dieksekusi secara sinkron. Halaman visualisasi berisiko membeku dan rentan memicu <em>Gunicorn 504 Timeout</em>.</li>
-                <li><strong>Beban ClickHouse Berulang:</strong> Setiap filter dashboard memicu query langsung baru ke ClickHouse dari awal.</li>
-              </ul>
-            </div>
-          </div>
-
-          <div class="card" style="margin-top: 2.5rem; margin-bottom: 1.5rem;">
-            <div class="card-header" style="color: var(--accent-primary);">
-              <div class="card-icon" style="background-color: rgba(99, 102, 241, 0.1); color: var(--accent-primary);">
-                <svg style="width: 20px; height: 20px; fill: currentColor;" viewBox="0 0 24 24"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H8V4h12v12z"/></svg>
-              </div>
-              <span>Daftar Container Docker - Konsep 2 (Minimalis)</span>
-            </div>
-            
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-top: 1.25rem;">
-              <!-- Silo 1: BI & Analytics -->
-              <div style="border: 1px solid var(--card-border); padding: 0.75rem; border-radius: 8px; background-color: var(--bg-secondary);">
-                <h4 style="margin: 0 0 0.5rem 0; color: var(--accent-primary); font-size: 0.9rem; border-bottom: 1px solid var(--card-border); padding-bottom: 0.25rem;">1. BI & Analytics (Wajib)</h4>
-                <ul style="list-style: none; padding: 0; margin: 0; font-size: 0.8rem; line-height: 1.4;">
-                  <li style="margin-bottom: 0.25rem;"><code>superset-app</code> <span style="color: var(--text-secondary);"><br>Server utama penampil visualisasi dashboard dan query. Menggunakan SQLite bawaan secara sinkronous.</span></li>
-                </ul>
-              </div>
-
-              <!-- Silo 2: Database OLAP -->
-              <div style="border: 1px solid var(--card-border); padding: 0.75rem; border-radius: 8px; background-color: var(--bg-secondary);">
-                <h4 style="margin: 0 0 0.5rem 0; color: var(--accent-emerald); font-size: 0.9rem; border-bottom: 1px solid var(--card-border); padding-bottom: 0.25rem;">2. Database OLAP (Wajib)</h4>
-                <ul style="list-style: none; padding: 0; margin: 0; font-size: 0.8rem; line-height: 1.4;">
-                  <li style="margin-bottom: 0.25rem;"><code>clickhouse-server</code> <span style="color: var(--text-secondary);"><br>Mesin penyimpanan columnar database analitis yang diakses langsung oleh Superset.</span></li>
-                </ul>
-              </div>
-
-              <!-- Silo 3: Scale-Up Components -->
-              <div style="border: 1px solid var(--card-border); padding: 0.75rem; border-radius: 8px; background-color: var(--bg-secondary);">
-                <h4 style="margin: 0 0 0.5rem 0; color: var(--accent-amber); font-size: 0.9rem; border-bottom: 1px solid var(--card-border); padding-bottom: 0.25rem;">3. Pendukung (Scale-Up)</h4>
-                <ul style="list-style: none; padding: 0; margin: 0; font-size: 0.8rem; line-height: 1.4;">
-                  <li style="margin-bottom: 0.25rem;"><code>postgres</code> <span style="color: var(--text-secondary);"><br>Database metadata eksternal pengganti SQLite untuk mencegah penulisan simultan terblokir (<em>database locked</em>).</span></li>
-                  <li style="margin-bottom: 0.25rem;"><code>redis</code> <span style="color: var(--text-secondary);"><br>Cache memori temporal hasil filter grafik untuk mengurangi beban kueri berulang.</span></li>
-                  <li style="margin-bottom: 0.25rem;"><code>celery-worker</code> & <code>beat</code> <span style="color: var(--text-secondary);"><br>Pemroses latar belakang dan scheduler asinkron untuk laporan terjadwal & rendering laporan.</span></li>
-                </ul>
-              </div>
-            </div>
-          </div>
-
-          <div class="alert-box">
-            <div class="alert-box-header">
-              <svg style="width: 20px; height: 20px; fill: var(--accent-amber);" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
-              <span>Catatan Keamanan & Batasan Fitur</span>
-            </div>
-            Tanpa adanya background worker (Celery) pada Konsep 2, fitur <strong>Alerts & Reports</strong> (pengiriman grafik via email/Slack otomatis secara terjadwal) <strong>tidak dapat berfungsi</strong> sama sekali karena memerlukan penjadwalan asinkron di latar belakang.
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Section 4: Perbandingan -->
-    <section id="perbandingan">
-      <h2>4. Matriks Perbandingan Arsitektur</h2>
-      <p>Perbandingan komprehensif aspek teknis dan operasional antara Konsep 1 dan Konsep 2:</p>
-      
-      <div class="table-container">
-        <table>
-          <thead>
-            <tr>
-              <th>Aspek Evaluasi</th>
-              <th>Konsep 1: Enterprise Full-Stack</th>
-              <th>Konsep 2: Minimalist Setup</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td><strong>Beban Resource (RAM/CPU)</strong></td>
-              <td><span class="badge badge-heavy">Rawan Melonjak</span><br>Penggunaan dasar sedang, tetapi rentan kehabisan RAM/CPU saat ETL & query aktif bersamaan (terutama pada spesifikasi RAM 8GB / Intel i3).</td>
-              <td><span class="badge badge-light">Ringan</span><br>2 Container Docker, RAM idle ~1GB (naik ke 2-4GB saat kueri aktif, jauh lebih hemat).</td>
-            </tr>
-            <tr>
-              <td><strong>Metrik Bisnis & Labeling</strong></td>
-              <td><span class="badge badge-light">Tersentralisasi (Cube.js)</span><br>Satu deklarasi semantic layer untuk semua tools analitik.</td>
-              <td><span class="badge badge-medium">Lokal per Dataset</span><br>Konfigurasi label & kalkulasi manual di dalam Superset.</td>
-            </tr>
-            <tr>
-              <td><strong>Stabilitas Konkurensi</strong></td>
-              <td><span class="badge badge-light">Tinggi</span><br>Metadata menggunakan PostgreSQL dan dilindungi cache Redis.</td>
-              <td><span class="badge badge-heavy">Rendah</span><br>SQLite rentan "Database Locked" jika diakses bersamaan.</td>
-            </tr>
-            <tr>
-              <td><strong>Kemudahan Pipeline ETL</strong></td>
-              <td><span class="badge badge-light">Mudah (No-Code UI)</span><br>Menggunakan panel GUI PeerDB untuk CDC otomatis.</td>
-              <td><span class="badge badge-medium">Manual</span><br>Membutuhkan script ETL Python/SQL untuk memindahkan data.</td>
-            </tr>
-            <tr>
-              <td><strong>Penyimpanan Disk</strong></td>
-              <td><span class="badge badge-heavy">Rawan Bengkak</span><br>Butuh penanganan berkala terhadap file staging MinIO & Cube.</td>
-              <td><span class="badge badge-light">Sangat Hemat</span><br>Hanya database ClickHouse terkompresi & metadata mini.</td>
-            </tr>
-            <tr>
-              <td><strong>Rekomendasi Lingkungan Deployment</strong></td>
-              <td><strong>Server Linux Produksi / Kubernetes (K8s)</strong><br>(Direkomendasikan dengan RAM dedicated ≥16GB untuk stabilitas CDC & BI terpadu).</td>
-              <td><strong>Fase PoC / Uji Batas Lokal / VM Tim Kecil</strong><br>(Cocok untuk uji batas ketahanan pada resource terbatas seperti RAM 8GB).</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </section>
-
-    <!-- Section 5: Estimasi Resource -->
-    <section id="estimasi-resource">
-      <h2>5. Estimasi Kebutuhan Resource per Container</h2>
-      <p>Estimasi berikut bersumber dari dokumentasi resmi dan diskusi komunitas. Nilai aktual dapat berbeda tergantung volume data, kompleksitas kueri, dan jumlah pengguna aktif. Angka-angka ini bersifat indikatif sebagai acuan perencanaan kapasitas &mdash; untuk mendapatkan angka yang lebih akurat sesuai kondisi spesifik, diperlukan pengujian lebih lanjut.</p>
-
-      <div style="background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 10px; padding: 0.75rem 1.25rem; margin-bottom: 2rem; font-size: 0.9rem; color: var(--text-secondary);">
-        ⚠️ <strong>Catatan:</strong> Angka estimasi ini bersifat indikatif, bukan hasil pengukuran langsung. Untuk mendapatkan angka yang lebih akurat sesuai kondisi lingkungan spesifik, diperlukan pengujian lebih lanjut &mdash; misalnya dengan memonitor penggunaan resource secara aktual saat beban nyata.
-      </div>
-
-      <h3 style="margin-bottom: 1rem;">Konsep 1 &ndash; Enterprise Full-Stack (14 Container)</h3>
-      <div class="table-container">
-        <table>
-          <thead>
-            <tr>
-              <th>Container</th>
-              <th>Kategori Beban</th>
-              <th>Estimasi RAM Idle</th>
-              <th>Kondisi Saat Aktif</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td><code>superset-app</code></td>
-              <td><span class="badge badge-medium">Sedang</span></td>
-              <td>~300–500 MB</td>
-              <td>Naik hingga ~800 MB–1.5 GB saat banyak user aktif bersamaan</td>
-            </tr>
-            <tr>
-              <td><code>superset-init</code></td>
-              <td><span class="badge badge-light">Sangat Ringan</span></td>
-              <td>~50–100 MB</td>
-              <td>Hanya berjalan sekali saat inisialisasi, lalu berhenti otomatis</td>
-            </tr>
-            <tr>
-              <td><code>redis</code></td>
-              <td><span class="badge badge-light">Sangat Ringan</span></td>
-              <td>~30–50 MB</td>
-              <td>Naik sesuai jumlah hasil cache chart yang tersimpan</td>
-            </tr>
-            <tr>
-              <td><code>celery-worker</code></td>
-              <td><span class="badge badge-medium">Ringan–Sedang</span></td>
-              <td>~200–400 MB</td>
-              <td>Naik saat memproses kueri berat atau rendering laporan terjadwal</td>
-            </tr>
-            <tr>
-              <td><code>celery-beat</code></td>
-              <td><span class="badge badge-light">Sangat Ringan</span></td>
-              <td>~50–100 MB</td>
-              <td>Hampir konstan, hanya mengirimkan trigger jadwal</td>
-            </tr>
-            <tr>
-              <td><code>cube-core</code></td>
-              <td><span class="badge badge-medium">Sedang</span></td>
-              <td>~300–600 MB</td>
-              <td>Naik saat menghitung <em>pre-aggregations</em> baru ke database</td>
-            </tr>
-            <tr>
-              <td><code>peerdb-ui</code></td>
-              <td><span class="badge badge-light">Ringan</span></td>
-              <td>~100–200 MB</td>
-              <td>Relatif konstan sebagai UI monitoring pipeline</td>
-            </tr>
-            <tr>
-              <td><code>peerdb-server</code></td>
-              <td><span class="badge badge-medium">Sedang</span></td>
-              <td>~200–400 MB</td>
-              <td>Naik saat CDC aktif mereplikasi perubahan data dari OLTP</td>
-            </tr>
-            <tr>
-              <td><code>flow-worker</code></td>
-              <td><span class="badge badge-medium">Sedang</span></td>
-              <td>~200–500 MB</td>
-              <td>Naik signifikan saat proses sinkronisasi data berjalan</td>
-            </tr>
-            <tr>
-              <td><code>flow-snapshot</code></td>
-              <td><span class="badge badge-heavy">Berat (Sesaat)</span></td>
-              <td>~500 MB–1 GB</td>
-              <td>Aktif hanya saat dump awal data historis, lalu berhenti otomatis</td>
-            </tr>
-            <tr>
-              <td><code>flow-api</code></td>
-              <td><span class="badge badge-light">Ringan</span></td>
-              <td>~100–150 MB</td>
-              <td>Relatif konstan sebagai gateway REST API</td>
-            </tr>
-            <tr>
-              <td><code>postgres</code></td>
-              <td><span class="badge badge-light">Sangat Ringan</span></td>
-              <td>~50–100 MB</td>
-              <td>Hanya menyimpan metadata Superset, tidak bertumbuh besar</td>
-            </tr>
-            <tr>
-              <td><code>clickhouse-server</code></td>
-              <td><span class="badge badge-heavy">Sedang–Tinggi</span></td>
-              <td>~500 MB–1 GB</td>
-              <td>Naik hingga 2–4 GB saat kueri analitis besar aktif dijalankan</td>
-            </tr>
-            <tr>
-              <td><code>minio</code></td>
-              <td><span class="badge badge-light">Ringan</span></td>
-              <td>~100–200 MB</td>
-              <td>Naik saat file CSV <em>staging</em> sedang ditulis oleh PeerDB</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <div style="background: rgba(239, 68, 68, 0.07); border: 1px solid rgba(239, 68, 68, 0.25); border-radius: 10px; padding: 0.75rem 1.25rem; margin: 1rem 0 2.5rem 0; font-size: 0.9rem; color: var(--text-secondary);">
-        ⚠️ <strong>Total Estimasi RAM Idle Konsep 1: ~2.5–4.5 GB</strong> &mdash; Pada spesifikasi RAM 8 GB, penggunaan idle sudah mengonsumsi lebih dari separuh kapasitas, menyisakan ruang terbatas untuk sistem operasi dan aktivitas lainnya. Risiko lonjakan resource (<em>spike</em>) meningkat ketika ETL dan query analitis berjalan bersamaan.
-      </div>
-
-      <h3 style="margin-bottom: 1rem;">Konsep 2 &ndash; Minimalist Setup (2–6 Container)</h3>
-      <div class="table-container">
-        <table>
-          <thead>
-            <tr>
-              <th>Container</th>
-              <th>Kategori Beban</th>
-              <th>Estimasi RAM Idle</th>
-              <th>Kondisi Saat Aktif</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td><code>superset-app</code></td>
-              <td><span class="badge badge-medium">Sedang</span></td>
-              <td>~300–500 MB</td>
-              <td>Naik saat banyak user menjalankan query dashboard bersamaan</td>
-            </tr>
-            <tr>
-              <td><code>clickhouse-server</code></td>
-              <td><span class="badge badge-heavy">Sedang–Tinggi</span></td>
-              <td>~500 MB–1 GB</td>
-              <td>Naik hingga 2–4 GB saat query analitis besar aktif</td>
-            </tr>
-            <tr>
-              <td><code>postgres</code></td>
-              <td><span class="badge badge-light">Sangat Ringan</span></td>
-              <td>~50–100 MB</td>
-              <td>Relatif konstan, hanya metadata konfigurasi Superset</td>
-            </tr>
-            <tr>
-              <td><code>redis</code></td>
-              <td><span class="badge badge-light">Sangat Ringan</span></td>
-              <td>~30–50 MB</td>
-              <td>Naik sesuai jumlah cache chart yang tersimpan</td>
-            </tr>
-            <tr>
-              <td><code>celery-worker</code></td>
-              <td><span class="badge badge-medium">Ringan–Sedang</span></td>
-              <td>~200–400 MB</td>
-              <td>Naik saat ada laporan terjadwal atau kueri latar belakang</td>
-            </tr>
-            <tr>
-              <td><code>celery-beat</code></td>
-              <td><span class="badge badge-light">Sangat Ringan</span></td>
-              <td>~50–100 MB</td>
-              <td>Hampir konstan, hanya mengirimkan trigger jadwal</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 0.5rem;">
-        <div style="background: rgba(16, 185, 129, 0.07); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 10px; padding: 0.75rem 1.25rem; font-size: 0.9rem; color: var(--text-secondary);">
-          ✅ <strong>Total RAM Idle (Hanya Wajib): ~800 MB–1.5 GB</strong><br>Sangat sesuai untuk device lokal dengan RAM 8 GB.
-        </div>
-        <div style="background: rgba(16, 185, 129, 0.07); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 10px; padding: 0.75rem 1.25rem; font-size: 0.9rem; color: var(--text-secondary);">
-          ✅ <strong>Total RAM Idle (Dengan Semua Pendukung): ~1.2–2.1 GB</strong><br>Masih menyisakan ruang RAM yang cukup nyaman untuk sistem operasi.
-        </div>
-      </div>
-    </section>
-
-    <!-- Section 6: Superset vs Power BI -->
-    <section id="superset-vs-powerbi">
-      <h2>6. Perbandingan: Apache Superset vs Power BI Desktop</h2>
-      <p>Berikut adalah analisis komprehensif antara <strong>Apache Superset</strong> dan <strong>Microsoft Power BI Desktop</strong> untuk kebutuhan visualisasi data analitis dari sumber data (source):</p>
-      
-      <div class="table-container">
-        <table>
-          <thead>
-            <tr>
-              <th>Kriteria Evaluasi</th>
-              <th>Apache Superset</th>
-              <th>Power BI Desktop</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td><strong>Akses & Platform</strong></td>
-              <td>Berbasis Web (Cloud-native). Dapat diakses dari sistem operasi apa pun melalui web browser.</td>
-              <td>Aplikasi Desktop khusus Windows. Pengguna macOS/Linux memerlukan VM atau Remote Desktop.</td>
-            </tr>
-            <tr>
-              <td><strong>Konektivitas Sumber Data</strong></td>
-              <td>Koneksi langsung via SQLAlchemy. Relatif mudah dikonfigurasi dan ramah terhadap query besar.</td>
-              <td>Membutuhkan driver ODBC khusus atau konektor bawaan di Windows.</td>
-            </tr>
-            <tr>
-              <td><strong>Metode Pengambilan Data</strong></td>
-              <td>Selalu melakukan query langsung (Direct Query) ke sumber data (source) secara native.</td>
-              <td>Mendukung <em>Import Mode</em> (data diimpor ke RAM lokal) atau <em>DirectQuery</em> (query langsung ke sumber data).</td>
-            </tr>
-            <tr>
-              <td><strong>Semantic Layer</strong></td>
-              <td>Bersifat tipis (ringan). Untuk logika metrik bisnis yang rumit biasanya dipasangkan dengan Cube.js atau dbt.</td>
-              <td>Sangat kaya dan matang. Menggunakan bahasa DAX dan pemodelan Tabular untuk relasi data yang kompleks secara bawaan.</td>
-            </tr>
-            <tr>
-              <td><strong>Beban Device Lokal</strong></td>
-              <td>Sangat ringan di sisi klien (device lokal hanya menjalankan peramban/browser).</td>
-              <td>Cenderung berat jika menggunakan <em>Import Mode</em> karena memproses data di RAM device lokal.</td>
-            </tr>
-            <tr>
-              <td><strong>Pembaruan Data & File Sharing</strong></td>
-              <td>Memungkinkan akses mandiri karena dataset utama sudah terpusat dan terupdate otomatis di web tanpa perlu menunggu kiriman berkas terbaru, dengan tetap mendukung unggah berkas Excel tambahan jika diperlukan.</td>
-              <td>Jika bergantung pada berkas Excel lokal, berkas perlu diperbarui berkala (baik meminta berkas baru atau menunggu email otomatis) sehingga alur kerjanya kurang praktis.</td>
-            </tr>
-            <tr>
-              <td><strong>Kolaborasi & Lisensi</strong></td>
-              <td>Open-source (Gratis). Berbagi dashboard ke pengguna lain tidak memerlukan biaya lisensi tambahan.</td>
-              <td>Pembuatan laporan lokal gratis, tetapi berbagi/kolaborasi via web service membutuhkan lisensi Pro/Premium per user.</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <div class="card-grid">
-        <div class="card">
-          <div class="card-header" style="color: var(--accent-primary);">
-            <span>Kapan memilih Apache Superset?</span>
-          </div>
-          <ul style="padding-left: 0; margin-top: 0.5rem; list-style-type: none;">
-            <li style="position: relative; padding-left: 1.25rem; margin-bottom: 0.5rem; font-size: 0.95rem; color: var(--text-secondary);">
-              Membutuhkan platform visualisasi berbasis web terpusat agar seluruh pengguna dapat mengakses data terupdate secara mandiri tanpa perlu menunggu kiriman file berkala.
-            </li>
-            <li style="position: relative; padding-left: 1.25rem; margin-bottom: 0.5rem; font-size: 0.95rem; color: var(--text-secondary);">
-              Ingin menghindari biaya lisensi per pengguna untuk kebutuhan kolaborasi dan berbagi dashboard.
-            </li>
-            <li style="position: relative; padding-left: 1.25rem; margin-bottom: 0.5rem; font-size: 0.95rem; color: var(--text-secondary);">
-              Lebih menyukai analisis data berbasis kueri SQL langsung ke sumber data.
-            </li>
-            <li style="position: relative; padding-left: 1.25rem; margin-bottom: 0.5rem; font-size: 0.95rem; color: var(--text-secondary);">
-              Memiliki infrastruktur server/Docker terpisah agar pemrosesan data tidak membebani device lokal.
-            </li>
-          </ul>
-        </div>
-        <div class="card">
-          <div class="card-header" style="color: var(--accent-secondary);">
-            <span>Kapan memilih Power BI Desktop?</span>
-          </div>
-          <ul style="padding-left: 0; margin-top: 0.5rem; list-style-type: none;">
-            <li style="position: relative; padding-left: 1.25rem; margin-bottom: 0.5rem; font-size: 0.95rem; color: var(--text-secondary);">
-              Tim sudah terintegrasi dalam ekosistem Microsoft dan pengguna lebih terbiasa menggunakan Excel atau formula DAX.
-            </li>
-            <li style="position: relative; padding-left: 1.25rem; margin-bottom: 0.5rem; font-size: 0.95rem; color: var(--text-secondary);">
-              Membutuhkan pemodelan data lokal yang kompleks dan relasi antar tabel yang rumit sebelum laporan dibagikan.
-            </li>
-            <li style="position: relative; padding-left: 1.25rem; margin-bottom: 0.5rem; font-size: 0.95rem; color: var(--text-secondary);">
-              Memiliki spesifikasi device lokal yang memadai jika ingin menggunakan <em>Import Mode</em> untuk data berukuran besar guna meminimalkan risiko lambat.
-            </li>
-          </ul>
-        </div>
-      </div>
-    </section>
-
-    <!-- Section 7: Rekomendasi Final -->
-    <section id="rekomendasi">
-      <h2>7. Rekomendasi Final</h2>
-      <p>
-        Berdasarkan analisis arsitektur, estimasi resource, dan kondisi infrastruktur yang dievaluasi, bagian ini merangkum keputusan teknis serta pilihan arsitektur yang disarankan. 
-        <br>
-        <strong>Catatan Penting Konten Pengujian:</strong> Spesifikasi hardware laptop yang minim (RAM 8 GB, Intel i3) <strong>hanya digunakan untuk menguji batas ketahanan (stress test/boundary testing)</strong> sistem pada kondisi resource yang sangat terbatas. Konteks ini <strong>bukanlah target implementasi produksi final</strong>. Untuk deployment produksi di masa mendatang, sistem akan dijalankan pada <strong>server Linux menggunakan Docker CLI atau diorkestrasikan melalui Kubernetes (K8s)</strong> dengan alokasi resource penuh.
-      </p>
-
-      <div class="card-grid" style="grid-template-columns: 1fr;">
-
-        <!-- Bagian A: Mengapa Konsep 1 Tidak Diprioritaskan -->
-        <div class="card">
-          <div class="card-header" style="color: var(--accent-rose);">
-            <div class="card-icon" style="background-color: rgba(239, 68, 68, 0.1); color: var(--accent-rose);">
-              <svg style="width: 20px; height: 20px; fill: currentColor;" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
-            </div>
-            <span>A. Mengapa Konsep 1 Tidak Diprioritaskan untuk Tahap Pengujian Batas (PoC) Ini</span>
-          </div>
-          <p>Konsep 1 (Enterprise Full-Stack) dirancang untuk lingkungan produksi skala besar. Selama fase pengujian PoC di lingkungan lokal yang dibatasi (RAM 8 GB, i3):</p>
-          <ul style="margin-left: 1rem; margin-bottom: 1rem;">
-            <li><strong>Tujuan Pengujian Batas:</strong> Pengujian sengaja menggunakan hardware berspesifikasi minim untuk memetakan batasan kritis. Konsep 1 dengan 14 container (estimasi idle RAM ~2.5–4.5 GB) terbukti memicu crash akibat lonjakan resource saat proses ETL CDC (PeerDB) dan query analitis berjalan bersamaan.</li>
-            <li><strong>Relevansi Produksi:</strong> Meskipun berat untuk laptop testing, <strong>Konsep 1 merupakan arsitektur target utama (recommended)</strong> ketika dideploy ke infrastruktur server Linux produksi sesungguhnya menggunakan Docker CLI atau Kubernetes, di mana resource hardware dedicated tersedia secara melimpah dan isolasi container terjamin.</li>
-            <li><strong>Kebutuhan CDC Semi-Instan &amp; Data Masif:</strong> Jika terdapat kebutuhan menyinkronkan data transaksional bervolume masif dari database OLTP ke database OLAP ClickHouse secara cepat tanpa membebani performa database transaksional utama, maka Konsep 1 dengan infrastruktur CDC (PeerDB) menjadi kebutuhan wajib.</li>
-            <li><strong>Skenario Belum Memiliki Sistem BI/ETL Inplace:</strong> Konsep 1 bertindak sebagai <strong>solusi komprehensif (<em>comprehensive solution</em>)</strong> yang siap pakai. Jika internal organisasi belum memiliki sistem pipeline ETL, CDC, maupun semantic layer yang terpasang (<em>inplace</em>), arsitektur lengkap ini sangat direkomendasikan karena mengintegrasikan seluruh silo data dari hulu ke hilir.</li>
-            <li><strong>Kapasitas Operasional:</strong> Arsitektur 14 container ini membutuhkan tim ops untuk monitoring pipeline CDC, pre-aggregations Cube.js, dan queue Celery secara berkelanjutan di cluster Kubernetes.</li>
-          </ul>
-          <div style="background: rgba(99, 102, 241, 0.07); border-left: 3px solid var(--accent-primary); border-radius: 0 8px 8px 0; padding: 0.75rem 1rem; font-size: 0.9rem; color: var(--text-secondary);">
-            💡 <strong>Konsep 1 tetap relevan sebagai target arsitektur jangka panjang</strong> ketika tahap implementasi final dilakukan ke Linux server dengan Docker CLI / Kubernetes.
-          </div>
-        </div>
-        <div class="card">
-          <div class="card-header" style="color: var(--accent-emerald);">
-            <div class="card-icon" style="background-color: rgba(16, 185, 129, 0.1); color: var(--accent-emerald);">
-              <svg style="width: 20px; height: 20px; fill: currentColor;" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
-            </div>
-            <span>B. Rekomendasi Langkah Awal: Konsep 2 yang Dioptimalkan (Solusi Hybrid untuk Fase PoC / Uji Batas)</span>
-          </div>
-          <p>
-            Untuk kelancaran fase pengujian PoC di device dengan resource terbatas ini, disarankan menggunakan <strong>Konsep 2 dengan penambahan komponen kritis</strong>. Pendekatan ini menjaga sistem tetap ringan namun menghindari kelemahan fatal SQLite.
-          </p>
-
-          <h4 style="margin: 1.25rem 0 0.5rem 0; color: var(--accent-blue); font-size: 0.95rem;">B.1 Migrasi SQLite ke PostgreSQL (Metadata Superset)</h4>
-          <p>Dengan mengubah database internal Superset dari SQLite bawaan menjadi database PostgreSQL mandiri (dapat berupa kontainer Docker Postgres kecil tambahan), membantu memitigasi tiga kendala operasional utama:</p>
-          <ul style="margin-left: 1rem; margin-bottom: 1rem;">
-            <li><strong>Mengurangi Risiko Database Locked:</strong> PostgreSQL menangani transaksi simultan dengan baik, membantu meminimalkan risiko hambatan locking saat berkolaborasi mendesain dashboard.</li>
-            <li><strong>Keamanan Data Metadata:</strong> PostgreSQL menggunakan mekanisme <i>Write-Ahead Logging (WAL)</i>. Jika proses Docker berhenti mendadak akibat beban kerja tinggi atau lonjakan resource, metadata Superset (dashboard, grafik, role) berpotensi lebih terlindungi dari kerusakan data (korup).</li>
-            <li><strong>Kemudahan Migrasi ke Produksi:</strong> Basis database metadata PostgreSQL ini akan mempermudah tim saat memindahkan seluruh konfigurasi dasbor ke server produksi Linux (baik via Docker Compose maupun Kubernetes manifests).</li>
-          </ul>
-
-          <h4 style="margin: 1.25rem 0 0.5rem 0; color: var(--accent-emerald); font-size: 0.95rem;">B.2 Optimalisasi Dataset Superset (Pengganti Cube.js)</h4>
-          <p>Tanpa Cube.js, standarisasi labeling dipindahkan langsung ke dalam menu manajemen Dataset di Apache Superset. Superset menyediakan antarmuka internal yang kuat:</p>
-          <ul style="margin-left: 1rem; margin-bottom: 1rem;">
-            <li><strong>Labeling Kolom:</strong> Kolom database analitis yang kaku seperti <code>dtl_tr_id</code> dapat dideklarasikan dengan label manusiawi <code>"ID Detail Transaksi"</code>. Pengguna awam cukup melakukan drag-and-drop label ramah tersebut.</li>
-            <li><strong>Datetime Format:</strong> Kunci format waktu standardisasi (misalnya <code>YYYY-MM-DD HH:mm:ss</code>) di tingkat dataset agar tidak terjadi perbedaan representasi zona waktu di tiap grafik.</li>
-            <li><strong>Calculated Columns:</strong> Logika bisnis (misal: <code>Harga * Jumlah * (1 - Diskon)</code>) dapat ditulis langsung sebagai kolom kalkulasi sekali saja menggunakan sintaks SQL ClickHouse, siap dipakai oleh seluruh visualisasi turunan.</li>
-          </ul>
-
-          <h4 style="margin: 1.25rem 0 0.5rem 0; color: var(--accent-amber); font-size: 0.95rem;">B.3 Manajemen Siklus Data di ClickHouse (DML &amp; Partisi)</h4>
-          <p>ClickHouse adalah database columnar yang bersifat <i>append-only</i>. Operasi DML <code>UPDATE</code> atau <code>DELETE</code> standar akan sangat lambat dan memakan resource. Berikut mitigasi performanya:</p>
-          <ul style="margin-left: 1rem; margin-bottom: 1rem;">
-            <li><strong>ReplacingMergeTree Engine:</strong> Gunakan engine tabel ini untuk mengatasi data transaksional yang sering berubah status. ClickHouse dirancang untuk menyaring data lama dan menyisakan data dengan versi terbaru secara berkala di latar belakang berdasarkan primary key.</li>
-            <li><strong>Partisi Tabel:</strong> Selalu partisi data tabel ClickHouse (misal per bulan/tahun). Partisi yang tepat membantu mengurangi kemungkinan terjadinya kueri memindai seluruh tabel data (<em>full-table scan</em>) saat filter dashboard diubah, sehingga membantu menghemat penggunaan CPU ClickHouse.</li>
-          </ul>
-        </div>
-
-      </div>
-    </section>
   </div>
 
-  <script>
-    // Tab switching logic
-    function switchTab(evt, tabId) {
-      // Get all elements with class="tab-content" and hide them
-      const tabContents = document.getElementsByClassName("tab-content");
-      for (let i = 0; i < tabContents.length; i++) {
-        tabContents[i].classList.remove("active");
-      }
+  <!-- SECTION 1 -->
+  <section id="pendahuluan">
+    <h2>Pendahuluan: Apache Superset</h2>
+    <p><strong>Apache Superset</strong> adalah platform visualisasi data modern, cepat, dan tangguh yang digunakan untuk menampilkan data mentah maupun data olahan dalam bentuk dashboard dan grafik interaktif. Dengan dukungan konektivitas database yang luas melalui SQLAlchemy, Superset menjadi pilihan utama untuk operasional Business Intelligence (BI) yang fleksibel.</p>
 
-      // Get all elements with class="tab-btn" and remove the class "active"
-      const tabBtns = document.getElementsByClassName("tab-btn");
-      for (let i = 0; i < tabBtns.length; i++) {
-        tabBtns[i].classList.remove("active");
-      }
+    <div class="grid">
+      <div class="card">
+        <div class="card-hd">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+          Eksplorasi & Query Data
+        </div>
+        <ul>
+          <li><strong>SQL Lab:</strong> IDE query interaktif untuk merancang query SQL mentah langsung ke database.</li>
+          <li><strong>Query to Dataset:</strong> Mengubah hasil analisis SQL Lab secara langsung menjadi dataset siap pakai.</li>
+          <li><strong>Upload Data CSV:</strong> Kemampuan import file data lokal langsung ke penyimpanan database yang terkoneksi.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-hd">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          Akses & Pembagian Kolaborasi
+        </div>
+        <ul>
+          <li><strong>Keamanan Granular:</strong> Pembagian dashboard, chart, dataset, dan koneksi berdasarkan User, Role, maupun Group.</li>
+          <li><strong>Embedding & Sharing:</strong> Export chart menjadi embeddable iframe serta berbagi tautan dashboard berizin khusus.</li>
+          <li><strong>Export Format:</strong> Mengunduh data hasil visualisasi ke CSV/Excel dan dashboard/chart utuh menjadi Image (PNG) atau PDF.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
 
-      // Show the current tab, and add an "active" class to the button that opened the tab
-      document.getElementById(tabId).classList.add("active");
-      if (evt && evt.currentTarget) {
-        evt.currentTarget.classList.add("active");
-      } else {
-        // If programmatically triggered without click event
-        const btn = document.querySelector(`.tab-btn[onclick*="${tabId}"]`);
-        if (btn) btn.classList.add("active");
-      }
-    }
+  <!-- SECTION 2 & 3: TABS -->
+  <section id="konsep-arsitektur">
+    <h2>Pilihan Konsep Arsitektur</h2>
+    <p>Berikut adalah dua rancangan konsep arsitektur yang dievaluasi untuk kebutuhan PoC maupun deployment di server produksi.</p>
 
-    // Theme toggle logic
-    const themeToggle = document.getElementById("themeToggle");
-    const themeIcon = document.getElementById("themeIcon");
-    const themeText = document.getElementById("themeText");
-    const htmlEl = document.documentElement;
+    <div class="tab-wrap">
+      <div class="tab-hd">
+        <button class="tab-btn on" onclick="switchTab(event,'pane1')">Konsep 1: Enterprise Full-Stack</button>
+        <button class="tab-btn" onclick="switchTab(event,'pane2')">Konsep 2: Minimalist Setup</button>
+      </div>
 
-    themeToggle.addEventListener("click", () => {
-      const currentTheme = htmlEl.getAttribute("data-theme");
-      if (currentTheme === "dark") {
-        htmlEl.setAttribute("data-theme", "light");
-        themeText.textContent = "Dark Mode";
-        themeIcon.innerHTML = '<path d="M12 3c.132 0 .263 0 .393.007a7.5 7.5 0 0 0 7.92 12.446A9 9 0 1 1 12 2.992z"/>'; // Moon icon
-      } else {
-        htmlEl.setAttribute("data-theme", "dark");
-        themeText.textContent = "Light Mode";
-        themeIcon.innerHTML = '<path d="M12 18c-3.3 0-6-2.7-6-6s2.7-6 6-6 6 2.7 6 6-2.7 6-6 6zm0-14c-4.4 0-8 3.6-8 8s3.6 8 8 8 8-3.6 8-8-3.6-8-8-8z"/>'; // Sun icon
-      }
-    });
+      <!-- KONSEP 1 -->
+      <div id="pane1" class="tab-pane on">
+        <div style="margin-bottom:12px"><span class="bdg bdg-r">Heavyweight Architecture</span></div>
+        <h3>Konsep 1: Enterprise Full-Stack (Heavyweight)</h3>
+        <p>Konsep 1 dirancang untuk ekosistem skala besar dengan kebutuhan sinkronisasi otomatis CDC (<em>Change Data Capture</em>), <em>semantic layer</em> tersentralisasi, dan caching asinkron.</p>
 
-    // Mobile menu toggle
-    const menuToggle = document.getElementById("menuToggle");
-    const sidebar = document.getElementById("sidebar");
+        <div class="flow-wrap">
+          <strong>Data Pipeline & Caching Flow (Konsep 1)</strong>
+          <div class="flow-row">
+            <div class="flow-node">PostgreSQL (OLTP)<span class="flow-label">Sumber Transaksional</span></div>
+            <span class="flow-arrow"></span>
+            <div class="flow-node hl">PeerDB (ETL/CDC)<span class="flow-label">Staging via MinIO</span></div>
+            <span class="flow-arrow"></span>
+            <div class="flow-node">ClickHouse<span class="flow-label">OLAP Store</span></div>
+            <span class="flow-arrow"></span>
+            <div class="flow-node hl">Cube.js<span class="flow-label">Semantic Layer</span></div>
+            <span class="flow-arrow"></span>
+            <div class="flow-node">Superset (BI)<span class="flow-label">Celery, Redis & Postgres</span></div>
+          </div>
+        </div>
 
-    menuToggle.addEventListener("click", (e) => {
-      sidebar.classList.toggle("open");
-      e.stopPropagation();
-    });
+        <div class="grid">
+          <div class="card">
+            <div class="card-hd" style="color:var(--accent2)">Kelebihan & Justifikasi</div>
+            <ul>
+              <li><strong>Multi-BI Compatibility:</strong> Adanya Cube.js sebagai <em>global semantic layer</em> membantu agar definisi labeling data dan logika metrik terpusat dapat diakses bersamaan oleh Superset, PowerBI, Tableau, dll.</li>
+              <li><strong>Otomatisasi CDC:</strong> PeerDB mempermudah sinkronisasi data dari database utama (OLTP) ke database analitis (OLAP ClickHouse) secara visual dengan minim penulisan kode ETL manual.</li>
+              <li><strong>Caching yang Kuat:</strong> Redis dan Celery menangani query secara asinkron untuk membantu mengurangi risiko UI Superset mengalami hambatan/freeze.</li>
+              <li><strong>Solusi CDC & data masif:</strong> Sangat direkomendasikan jika terdapat kebutuhan <strong>CDC (Change Data Capture) semi-instan</strong> untuk menangani volume data transaksional yang masif dari OLTP ke OLAP secara efisien tanpa menurunkan performa database transaksional.</li>
+              <li><strong>Solusi Comprehensive Terintegrasi:</strong> Pilihan tepat jika di internal organisasi <strong>belum memiliki infrastruktur BI, pipeline ETL, maupun sistem CDC</strong> yang sudah terpasang (inplace), sehingga memerlukan satu kesatuan arsitektur solusi yang menyeluruh dan langsung terintegrasi dari hulu ke hilir.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <div class="card-hd" style="color:var(--accent4)">Kekurangan & Tantangan</div>
+            <ul>
+              <li><strong>Kerentanan Lonjakan Resource (Spikes):</strong> Pemakaian RAM dasar sebenarnya tidak terlalu besar, namun rawan kehabisan resource RAM & CPU secara ekstrem pada spesifikasi device lokal (seperti Intel i3-1115G4 dan RAM 8GB) ketika terjadi aktivitas bersamaan (proses ETL sinkronisasi berjalan saat user memuat dashboard).</li>
+              <li><strong>Beban I/O Disk Tinggi:</strong> Pre-aggregations Cube.js memerlukan penyimpanan hasil agregasi ke database, meningkatkan operasi baca-tulis disk secara intensif.</li>
+              <li><strong>Kompleksitas Pemeliharaan (Moving Parts):</strong> Banyaknya modul independen yang berjalan bersamaan (caching, queue, semantic layer, ETL) meningkatkan potensi kegagalan sistem dan membutuhkan monitoring yang ketat.</li>
+            </ul>
+          </div>
+        </div>
 
-    // Close sidebar when clicking outside on mobile
-    document.addEventListener("click", (e) => {
-      if (window.innerWidth <= 1024 && !sidebar.contains(e.target) && e.target !== menuToggle) {
-        sidebar.classList.remove("open");
-      }
-    });
+        <div class="card">
+          <div class="card-hd">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+            Daftar Container Docker - Konsep 1 (Full-Feature)
+          </div>
+          <div class="silo-grid">
+            <div class="silo">
+              <h4 style="color:var(--accent)">1. BI & Analytics (Superset)</h4>
+              <ul>
+                <li><code>superset-app</code> &mdash; Aplikasi utama / Web UI eksplorasi data & visualisasi dashboard. Menggunakan database metadata PostgreSQL eksternal untuk melayani ribuan kueri UI.</li>
+                <li><code>superset-init</code> &mdash; Inisialisasi metadata awal database, pembuatan admin, skema tabel internal, & role default saat sistem dinyalakan pertama kali.</li>
+              </ul>
+            </div>
+            <div class="silo">
+              <h4 style="color:var(--accent3)">2. Caching & Tasks</h4>
+              <ul>
+                <li><code>redis</code> &mdash; Cache memori metadata chart & broker kueri asinkron untuk meminimalkan beban kueri langsung ke database analitis.</li>
+                <li><code>celery-worker</code> &mdash; Worker pengeksekusi kueri analitis berat di latar belakang agar antarmuka browser Superset tidak membeku/freeze.</li>
+                <li><code>celery-beat</code> &mdash; Scheduler berkala yang mengirimkan jadwal tugas ke Redis untuk dieksekusi Celery worker guna merender laporan dashboard terjadwal.</li>
+              </ul>
+            </div>
+            <div class="silo">
+              <h4 style="color:var(--accent)">3. Semantic (Cube)</h4>
+              <ul>
+                <li><code>cube-core</code> &mdash; OLAP Cube server untuk menyatukan standar definisi metrik bisnis dan caching pre-aggregations tingkat lanjut di atas ClickHouse.</li>
+              </ul>
+            </div>
+            <div class="silo">
+              <h4 style="color:#2563eb">4. Pipeline & CDC (PeerDB)</h4>
+              <ul>
+                <li><code>peerdb-ui</code> & <code>server</code> &mdash; UI manajemen visual & core engine replikasi data CDC real-time dari log transaksi OLTP ke database OLAP ClickHouse.</li>
+                <li><code>flow-worker</code> & <code>snapshot</code> &mdash; Worker sinkronisasi data perubahan real-time & dump inisialisasi awal massal data historis lama.</li>
+                <li><code>flow-api</code> &mdash; Penyedia REST API untuk manajemen programmatic status replikasi data.</li>
+              </ul>
+            </div>
+            <div class="silo">
+              <h4 style="color:var(--accent2)">5. Database & Storage</h4>
+              <ul>
+                <li><code>clickhouse-server</code> &mdash; Database OLAP analitis berkinerja tinggi (columnar storage) yang mengekstrak data dari tabel agregat/flat tables secara instan.</li>
+                <li><code>postgres</code> &mdash; Database metadata internal untuk konfigurasi dasbor, visualisasi chart, RBAC user, dan integrasi internal.</li>
+                <li><code>minio</code> &mdash; Storage staging lokal penampung file CSV temporal untuk optimasi pemuatan data bulk copy sebelum dimasukkan ke ClickHouse.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
 
-    // Intercept sidebar links to switch tabs programmatically
-    document.querySelectorAll('.nav-menu a, .mobile-header a').forEach(link => {
-      link.addEventListener('click', (e) => {
-        const href = link.getAttribute('href');
-        if (href === '#konsep1' || href === '#konsep2') {
-          e.preventDefault();
-          const tabId = href === '#konsep1' ? 'tab-konsep1' : 'tab-konsep2';
-          
-          // Switch the tab
-          switchTab(null, tabId);
-          
-          // Scroll to the tabs section
-          const targetSection = document.getElementById('konsep-arsitektur');
-          if (targetSection) {
-            targetSection.scrollIntoView({ behavior: 'smooth' });
-          }
-          
-          // Close mobile menu if open
-          sidebar.classList.remove("open");
+      <!-- KONSEP 2 -->
+      <div id="pane2" class="tab-pane">
+        <div style="margin-bottom:12px"><span class="bdg bdg-g">Lightweight Architecture</span></div>
+        <h3>Konsep 2: Minimalist Setup (Lightweight)</h3>
+        <p>Konsep 2 memotong seluruh komponen perantara untuk menghadirkan kecepatan setup, efisiensi resource device lokal, dan kemudahan pemeliharaan.</p>
 
-          // Update active class in sidebar manually
-          document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
-          link.parentElement.classList.add('active');
+        <div class="flow-wrap">
+          <strong>Data Pipeline & Caching Flow (Konsep 2)</strong>
+          <div class="flow-row">
+            <div class="flow-node">Data Source (OLTP)</div>
+            <span class="flow-arrow"></span>
+            <div class="flow-node hl">Custom Script / Python Job<span class="flow-label">Direct Bulk Load</span></div>
+            <span class="flow-arrow"></span>
+            <div class="flow-node">ClickHouse<span class="flow-label">OLAP (Ready Table)</span></div>
+            <span class="flow-arrow"></span>
+            <div class="flow-node hl">Superset (BI)<span class="flow-label">SQLite Local DB</span></div>
+          </div>
+        </div>
 
-          // Update hash in URL bar
-          history.pushState(null, null, href);
-        }
-      });
-    });
+        <div class="grid">
+          <div class="card">
+            <div class="card-hd" style="color:var(--accent2)">Kelebihan & Justifikasi</div>
+            <ul>
+              <li><strong>Sangat Ringan:</strong> Hanya membutuhkan 2 container utama setelah inisialisasi. Cenderung lebih stabil berjalan di device berspesifikasi rendah dengan risiko crash yang lebih rendah.</li>
+              <li><strong>Mudah Di-maintain:</strong> Lebih sedikit bagian bergerak (<em>moving parts</em>) membantu meminimalkan potensi kegagalan sistem.</li>
+              <li><strong>Query Cepat:</strong> ClickHouse melakukan kompresi data kolom secara agresif, membantu mempercepat eksekusi query analitis dibanding database relasional biasa.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <div class="card-hd" style="color:var(--accent4)">Kerentanan Sistem Nyata</div>
+            <ul>
+              <li><strong>Database SQLite Locked:</strong> Menggunakan database SQLite lokal bawaan Superset. Jika beberapa user mengakses/mengedit dashboard bersamaan, transaksi SQL rentan terblokir (<em>locked</em>).</li>
+              <li><strong>UI Freeze & Timeout:</strong> Tanpa Redis/Celery, query berat dari ClickHouse dieksekusi secara sinkron. Halaman visualisasi berisiko membeku dan rentan memicu <em>Gunicorn 504 Timeout</em>.</li>
+              <li><strong>Beban ClickHouse Berulang:</strong> Setiap filter dashboard memicu query langsung baru ke ClickHouse dari awal.</li>
+            </ul>
+          </div>
+        </div>
 
-    // Handle scroll highlight active menu
-    const sections = document.querySelectorAll("section");
-    const navItems = document.querySelectorAll(".nav-item");
+        <div class="card">
+          <div class="card-hd">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+            Daftar Container Docker - Konsep 2 (Minimalis)
+          </div>
+          <div class="silo-grid">
+            <div class="silo">
+              <h4 style="color:var(--accent)">1. BI & Analytics (Wajib)</h4>
+              <ul>
+                <li><code>superset-app</code> &mdash; Server utama penampil visualisasi dashboard dan query. Menggunakan SQLite bawaan secara sinkron.</li>
+              </ul>
+            </div>
+            <div class="silo">
+              <h4 style="color:var(--accent2)">2. Database OLAP (Wajib)</h4>
+              <ul>
+                <li><code>clickhouse-server</code> &mdash; Mesin penyimpanan columnar database analitis yang diakses langsung oleh Superset.</li>
+              </ul>
+            </div>
+            <div class="silo">
+              <h4 style="color:var(--accent3)">3. Pendukung (Scale-Up)</h4>
+              <ul>
+                <li><code>postgres</code> &mdash; Database metadata eksternal pengganti SQLite untuk mencegah penulisan simultan terblokir (<em>database locked</em>).</li>
+                <li><code>redis</code> &mdash; Cache memori temporal hasil filter grafik untuk mengurangi beban kueri berulang.</li>
+                <li><code>celery-worker</code> & <code>celery-beat</code> &mdash; Pemroses latar belakang dan scheduler asinkron untuk laporan terjadwal & rendering laporan.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
 
-    window.addEventListener("scroll", () => {
-      let current = "";
-      sections.forEach((section) => {
-        const sectionTop = section.offsetTop;
-        const sectionHeight = section.clientHeight;
-        if (pageYOffset >= sectionTop - 150) {
-          current = section.getAttribute("id");
-        }
-      });
+        <div class="alert">
+          <strong>Catatan Keamanan & Batasan Fitur</strong><br>
+          Tanpa adanya background worker (Celery) pada Konsep 2, fitur <strong>Alerts & Reports</strong> (pengiriman grafik via email/Slack otomatis secara terjadwal) <strong>tidak dapat berfungsi</strong> sama sekali karena memerlukan penjadwalan asinkron di latar belakang.
+        </div>
+      </div>
+    </div>
+  </section>
 
-      navItems.forEach((li) => {
-        li.classList.remove("active");
-        const href = li.querySelector("a").getAttribute("href").substring(1);
-        
-        if (current === "konsep-arsitektur") {
-          // Determine which tab is active and highlight the corresponding sidebar link
-          const tab1Active = document.getElementById("tab-konsep1").classList.contains("active");
-          if (tab1Active && href === "konsep1") {
-            li.classList.add("active");
-          } else if (!tab1Active && href === "konsep2") {
-            li.classList.add("active");
-          }
-        } else if (current && href === current) {
-          li.classList.add("active");
-        }
-      });
-    });
-  </script>
+  <!-- SECTION 4: PERBANDINGAN -->
+  <section id="perbandingan">
+    <h2>Matriks Perbandingan Arsitektur</h2>
+    <p>Perbandingan komprehensif aspek teknis dan operasional antara Konsep 1 dan Konsep 2:</p>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Aspek Evaluasi</th>
+            <th>Konsep 1: Enterprise Full-Stack</th>
+            <th>Konsep 2: Minimalist Setup</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Beban Resource (RAM/CPU)</strong></td>
+            <td><span class="bdg bdg-r">Rawan Melonjak</span><br>Penggunaan dasar sedang, tetapi rentan kehabisan RAM/CPU saat ETL & query aktif bersamaan (terutama pada spesifikasi RAM 8GB / Intel i3).</td>
+            <td><span class="bdg bdg-g">Ringan</span><br>2 Container Docker, RAM idle ~1GB (naik ke 2-4GB saat kueri aktif, jauh lebih hemat).</td>
+          </tr>
+          <tr>
+            <td><strong>Metrik Bisnis & Labeling</strong></td>
+            <td><span class="bdg bdg-g">Tersentralisasi (Cube.js)</span><br>Satu deklarasi semantic layer untuk semua tools analitik.</td>
+            <td><span class="bdg bdg-y">Lokal per Dataset</span><br>Konfigurasi label & kalkulasi manual di dalam Superset.</td>
+          </tr>
+          <tr>
+            <td><strong>Stabilitas Konkurensi</strong></td>
+            <td><span class="bdg bdg-g">Tinggi</span><br>Metadata menggunakan PostgreSQL dan dilindungi cache Redis.</td>
+            <td><span class="bdg bdg-r">Rendah</span><br>SQLite rentan "Database Locked" jika diakses bersamaan.</td>
+          </tr>
+          <tr>
+            <td><strong>Kemudahan Pipeline ETL</strong></td>
+            <td><span class="bdg bdg-g">Mudah (No-Code UI)</span><br>Menggunakan panel GUI PeerDB untuk CDC otomatis.</td>
+            <td><span class="bdg bdg-y">Manual</span><br>Membutuhkan script ETL Python/SQL untuk memindahkan data.</td>
+          </tr>
+          <tr>
+            <td><strong>Penyimpanan Disk</strong></td>
+            <td><span class="bdg bdg-r">Rawan Bengkak</span><br>Butuh penanganan berkala terhadap file staging MinIO & Cube.</td>
+            <td><span class="bdg bdg-g">Sangat Hemat</span><br>Hanya database ClickHouse terkompresi & metadata mini.</td>
+          </tr>
+          <tr>
+            <td><strong>Rekomendasi Lingkungan Deployment</strong></td>
+            <td><strong>Server Linux Produksi / Kubernetes (K8s)</strong><br>(Direkomendasikan dengan RAM dedicated &ge;16GB untuk stabilitas CDC & BI terpadu).</td>
+            <td><strong>Fase PoC / Uji Batas Lokal / VM Tim Kecil</strong><br>(Cocok untuk uji batas ketahanan pada resource terbatas seperti RAM 8GB).</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- SECTION 5: ESTIMASI -->
+  <section id="estimasi">
+    <h2>Estimasi Kebutuhan Resource per Container</h2>
+    <p>Estimasi berikut bersumber dari dokumentasi resmi dan diskusi komunitas. Nilai aktual dapat berbeda tergantung volume data, kompleksitas kueri, dan jumlah pengguna aktif. Angka-angka ini bersifat indikatif sebagai acuan perencanaan kapasitas &mdash; untuk mendapatkan angka yang lebih akurat sesuai kondisi spesifik, diperlukan pengujian lebih lanjut.</p>
+
+    <div class="alert">
+      <strong>Catatan:</strong> Angka estimasi ini bersifat indikatif, bukan hasil pengukuran langsung. Untuk mendapatkan angka yang lebih akurat sesuai kondisi lingkungan spesifik, diperlukan pengujian lebih lanjut &mdash; misalnya dengan memonitor penggunaan resource secara aktual saat beban nyata.
+    </div>
+
+    <h3>Konsep 1 &mdash; Enterprise Full-Stack (14 Container)</h3>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr><th>Container</th><th>Kategori Beban</th><th>Estimasi RAM Idle</th><th>Kondisi Saat Aktif</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>superset-app</code></td><td><span class="bdg bdg-y">Sedang</span></td><td>~300-500 MB</td><td>Naik hingga ~800 MB-1.5 GB saat banyak user aktif bersamaan</td></tr>
+          <tr><td><code>superset-init</code></td><td><span class="bdg bdg-g">Sangat Ringan</span></td><td>~50-100 MB</td><td>Hanya berjalan sekali saat inisialisasi, lalu berhenti otomatis</td></tr>
+          <tr><td><code>redis</code></td><td><span class="bdg bdg-g">Sangat Ringan</span></td><td>~30-50 MB</td><td>Naik sesuai jumlah hasil cache chart yang tersimpan</td></tr>
+          <tr><td><code>celery-worker</code></td><td><span class="bdg bdg-y">Ringan-Sedang</span></td><td>~200-400 MB</td><td>Naik saat memproses kueri berat atau rendering laporan terjadwal</td></tr>
+          <tr><td><code>celery-beat</code></td><td><span class="bdg bdg-g">Sangat Ringan</span></td><td>~50-100 MB</td><td>Hampir konstan, hanya mengirimkan trigger jadwal</td></tr>
+          <tr><td><code>cube-core</code></td><td><span class="bdg bdg-y">Sedang</span></td><td>~300-600 MB</td><td>Naik saat menghitung <em>pre-aggregations</em> baru ke database</td></tr>
+          <tr><td><code>peerdb-ui</code></td><td><span class="bdg bdg-g">Ringan</span></td><td>~100-200 MB</td><td>Relatif konstan sebagai UI monitoring pipeline</td></tr>
+          <tr><td><code>peerdb-server</code></td><td><span class="bdg bdg-y">Sedang</span></td><td>~200-400 MB</td><td>Naik saat CDC aktif mereplikasi perubahan data dari OLTP</td></tr>
+          <tr><td><code>flow-worker</code></td><td><span class="bdg bdg-y">Sedang</span></td><td>~200-500 MB</td><td>Naik signifikan saat proses sinkronisasi data berjalan</td></tr>
+          <tr><td><code>flow-snapshot</code></td><td><span class="bdg bdg-r">Berat (Sesaat)</span></td><td>~500 MB-1 GB</td><td>Aktif hanya saat dump awal data historis, lalu berhenti otomatis</td></tr>
+          <tr><td><code>flow-api</code></td><td><span class="bdg bdg-g">Ringan</span></td><td>~100-150 MB</td><td>Relatif konstan sebagai gateway REST API</td></tr>
+          <tr><td><code>postgres</code></td><td><span class="bdg bdg-g">Sangat Ringan</span></td><td>~50-100 MB</td><td>Hanya menyimpan metadata Superset, tidak bertumbuh besar</td></tr>
+          <tr><td><code>clickhouse-server</code></td><td><span class="bdg bdg-r">Sedang-Tinggi</span></td><td>~500 MB-1 GB</td><td>Naik hingga 2-4 GB saat kueri analitis besar aktif dijalankan</td></tr>
+          <tr><td><code>minio</code></td><td><span class="bdg bdg-g">Ringan</span></td><td>~100-200 MB</td><td>Naik saat file CSV <em>staging</em> sedang ditulis oleh PeerDB</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="alert" style="border-left-color:var(--accent4);background:rgba(220,38,38,.06);border-color:rgba(220,38,38,.2)">
+      <strong>Total Estimasi RAM Idle Konsep 1: ~2.5-4.5 GB</strong> &mdash; Pada spesifikasi RAM 8 GB, penggunaan idle sudah mengonsumsi lebih dari separuh kapasitas, menyisakan ruang terbatas untuk sistem operasi dan aktivitas lainnya. Risiko lonjakan resource (<em>spike</em>) meningkat ketika ETL dan query analitis berjalan bersamaan.
+    </div>
+
+    <h3>Konsep 2 &mdash; Minimalist Setup (2-6 Container)</h3>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr><th>Container</th><th>Kategori Beban</th><th>Estimasi RAM Idle</th><th>Kondisi Saat Aktif</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>superset-app</code></td><td><span class="bdg bdg-y">Sedang</span></td><td>~300-500 MB</td><td>Naik saat banyak user menjalankan query dashboard bersamaan</td></tr>
+          <tr><td><code>clickhouse-server</code></td><td><span class="bdg bdg-r">Sedang-Tinggi</span></td><td>~500 MB-1 GB</td><td>Naik hingga 2-4 GB saat query analitis besar aktif</td></tr>
+          <tr><td><code>postgres</code></td><td><span class="bdg bdg-g">Sangat Ringan</span></td><td>~50-100 MB</td><td>Relatif konstan, hanya metadata konfigurasi Superset</td></tr>
+          <tr><td><code>redis</code></td><td><span class="bdg bdg-g">Sangat Ringan</span></td><td>~30-50 MB</td><td>Naik sesuai jumlah cache chart yang tersimpan</td></tr>
+          <tr><td><code>celery-worker</code></td><td><span class="bdg bdg-y">Ringan-Sedang</span></td><td>~200-400 MB</td><td>Naik saat ada laporan terjadwal atau kueri latar belakang</td></tr>
+          <tr><td><code>celery-beat</code></td><td><span class="bdg bdg-g">Sangat Ringan</span></td><td>~50-100 MB</td><td>Hampir konstan, hanya mengirimkan trigger jadwal</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:8px">
+      <div class="alert" style="border-left-color:var(--accent2);background:rgba(5,150,105,.06);border-color:rgba(5,150,105,.2)">
+        <strong>Total RAM Idle (Hanya Wajib): ~800 MB-1.5 GB</strong><br>Sangat sesuai untuk device lokal dengan RAM 8 GB.
+      </div>
+      <div class="alert" style="border-left-color:var(--accent2);background:rgba(5,150,105,.06);border-color:rgba(5,150,105,.2)">
+        <strong>Total RAM Idle (Dengan Semua Pendukung): ~1.2-2.1 GB</strong><br>Masih menyisakan ruang RAM yang cukup nyaman untuk sistem operasi.
+      </div>
+    </div>
+  </section>
+
+  <!-- SECTION 6: VS POWER BI -->
+  <section id="vs-powerbi">
+    <h2>Perbandingan: Apache Superset vs Power BI Desktop</h2>
+    <p>Berikut adalah analisis komprehensif antara <strong>Apache Superset</strong> dan <strong>Microsoft Power BI Desktop</strong> untuk kebutuhan visualisasi data analitis dari sumber data (source):</p>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr><th>Kriteria Evaluasi</th><th>Apache Superset</th><th>Power BI Desktop</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Akses & Platform</strong></td>
+            <td>Berbasis Web (Cloud-native). Dapat diakses dari sistem operasi apa pun melalui web browser.</td>
+            <td>Aplikasi Desktop khusus Windows. Pengguna macOS/Linux memerlukan VM atau Remote Desktop.</td>
+          </tr>
+          <tr>
+            <td><strong>Konektivitas Sumber Data</strong></td>
+            <td>Koneksi langsung via SQLAlchemy. Relatif mudah dikonfigurasi dan ramah terhadap query besar.</td>
+            <td>Membutuhkan driver ODBC khusus atau konektor bawaan di Windows.</td>
+          </tr>
+          <tr>
+            <td><strong>Metode Pengambilan Data</strong></td>
+            <td>Mengirimkan query SQL langsung ke sumber data, dengan sebagian pemrosesan hasil (seperti sorting dan filtering) dilakukan di sisi server Superset (Python/Gunicorn) sebelum ditampilkan ke pengguna.</td>
+            <td>Mendukung <em>Import Mode</em> (data diimpor ke RAM lokal) atau <em>DirectQuery</em> (query langsung ke sumber data).</td>
+          </tr>
+          <tr>
+            <td><strong>Semantic Layer</strong></td>
+            <td>Bersifat tipis (ringan). Untuk logika metrik bisnis yang rumit biasanya dipasangkan dengan Cube.js atau dbt.</td>
+            <td>Sangat kaya dan matang. Menggunakan bahasa DAX dan pemodelan Tabular untuk relasi data yang kompleks secara bawaan.</td>
+          </tr>
+          <tr>
+            <td><strong>Beban Device Lokal</strong></td>
+            <td>Sangat ringan di sisi klien (device lokal hanya menjalankan peramban/browser).</td>
+            <td>Cenderung berat jika menggunakan <em>Import Mode</em> karena memproses data di RAM device lokal.</td>
+          </tr>
+          <tr>
+            <td><strong>Pembaruan Data & File Sharing</strong></td>
+            <td>Memungkinkan akses mandiri karena dataset utama sudah terpusat dan terupdate otomatis di web tanpa perlu menunggu kiriman berkas terbaru, dengan tetap mendukung unggah berkas Excel tambahan jika diperlukan.</td>
+            <td>Jika bergantung pada berkas Excel lokal, berkas perlu diperbarui berkala (baik meminta berkas baru atau menunggu email otomatis) sehingga alur kerjanya kurang praktis.</td>
+          </tr>
+          <tr>
+            <td><strong>Kolaborasi & Lisensi</strong></td>
+            <td>Open-source (Gratis). Berbagi dashboard ke pengguna lain tidak memerlukan biaya lisensi tambahan.</td>
+            <td>Pembuatan laporan lokal gratis, tetapi berbagi/kolaborasi via web service membutuhkan lisensi Pro/Premium per user.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <div class="card-hd" style="color:var(--accent)">Kapan memilih Apache Superset?</div>
+        <ul>
+          <li>Membutuhkan platform visualisasi berbasis web terpusat agar seluruh pengguna dapat mengakses data terupdate secara mandiri tanpa perlu menunggu kiriman file berkala.</li>
+          <li>Ingin menghindari biaya lisensi per pengguna untuk kebutuhan kolaborasi dan berbagi dashboard.</li>
+          <li>Lebih menyukai analisis data berbasis kueri SQL langsung ke sumber data.</li>
+          <li>Memiliki infrastruktur server/Docker terpisah agar pemrosesan data tidak membebani device lokal.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-hd" style="color:var(--accent)">Kapan memilih Power BI Desktop?</div>
+        <ul>
+          <li>Tim sudah terintegrasi dalam ekosistem Microsoft dan pengguna lebih terbiasa menggunakan Excel atau formula DAX.</li>
+          <li>Membutuhkan pemodelan data lokal yang kompleks dan relasi antar tabel yang rumit sebelum laporan dibagikan.</li>
+          <li>Memiliki spesifikasi device lokal yang memadai jika ingin menggunakan <em>Import Mode</em> untuk data berukuran besar guna meminimalkan risiko lambat.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- SECTION 7: REKOMENDASI -->
+  <section id="rekomendasi">
+    <h2>Rekomendasi Final</h2>
+    <p>
+      Berdasarkan analisis arsitektur, estimasi resource, dan kondisi infrastruktur yang dievaluasi, bagian ini merangkum keputusan teknis serta pilihan arsitektur yang disarankan.
+      <br><br>
+      <strong>Catatan Penting Konten Pengujian:</strong> Spesifikasi hardware laptop yang minim (RAM 8 GB, Intel i3) <strong>hanya digunakan untuk menguji batas ketahanan (stress test/boundary testing)</strong> sistem pada kondisi resource yang sangat terbatas. Konteks ini <strong>bukanlah target implementasi produksi final</strong>. Untuk deployment produksi di masa mendatang, sistem akan dijalankan pada <strong>server Linux menggunakan Docker CLI atau diorkestrasikan melalui Kubernetes (K8s)</strong> dengan alokasi resource penuh.
+    </p>
+
+    <div class="grid" style="grid-template-columns:1fr">
+      <div class="card">
+        <div class="card-hd" style="color:var(--accent4)">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+          A. Mengapa Konsep 1 Tidak Diprioritaskan untuk Tahap Pengujian Batas (PoC) Ini
+        </div>
+        <p>Konsep 1 (Enterprise Full-Stack) dirancang untuk lingkungan produksi skala besar. Selama fase pengujian PoC di lingkungan lokal yang dibatasi (RAM 8 GB, i3):</p>
+        <ul>
+          <li><strong>Tujuan Pengujian Batas:</strong> Pengujian sengaja menggunakan hardware berspesifikasi minim untuk memetakan batasan kritis. Konsep 1 dengan 14 container (estimasi idle RAM ~2.5-4.5 GB) terbukti memicu crash akibat lonjakan resource saat proses ETL CDC (PeerDB) dan query analitis berjalan bersamaan.</li>
+          <li><strong>Relevansi Produksi:</strong> Meskipun berat untuk laptop testing, <strong>Konsep 1 merupakan arsitektur target utama (recommended)</strong> ketika dideploy ke infrastruktur server Linux produksi sesungguhnya menggunakan Docker CLI atau Kubernetes, di mana resource hardware dedicated tersedia secara melimpah dan isolasi container terjamin.</li>
+          <li><strong>Kebutuhan CDC Semi-Instan & Data Masif:</strong> Jika terdapat kebutuhan menyinkronkan data transaksional bervolume masif dari database OLTP ke database OLAP ClickHouse secara cepat tanpa membebani performa database transaksional utama, maka Konsep 1 dengan infrastruktur CDC (PeerDB) menjadi kebutuhan wajib.</li>
+          <li><strong>Skenario Belum Memiliki Sistem BI/ETL Inplace:</strong> Konsep 1 bertindak sebagai <strong>solusi komprehensif (<em>comprehensive solution</em>)</strong> yang siap pakai. Jika internal organisasi belum memiliki sistem pipeline ETL, CDC, maupun semantic layer yang terpasang (<em>inplace</em>), arsitektur lengkap ini sangat direkomendasikan karena mengintegrasikan seluruh silo data dari hulu ke hilir.</li>
+          <li><strong>Kapasitas Operasional:</strong> Arsitektur 14 container ini membutuhkan tim ops untuk monitoring pipeline CDC, pre-aggregations Cube.js, dan queue Celery secara berkelanjutan di cluster Kubernetes.</li>
+        </ul>
+        <div class="alert" style="border-left-color:var(--accent);background:rgba(37,99,235,.06);border-color:rgba(37,99,235,.2);margin:12px 0 0">
+          <strong>Konsep 1 tetap relevan sebagai target arsitektur jangka panjang</strong> ketika tahap implementasi final dilakukan ke Linux server dengan Docker CLI / Kubernetes.
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd" style="color:var(--accent2)">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          B. Rekomendasi Langkah Awal: Konsep 2 yang Dioptimalkan (Solusi Hybrid untuk Fase PoC / Uji Batas)
+        </div>
+        <p>Untuk kelancaran fase pengujian PoC di device dengan resource terbatas ini, disarankan menggunakan <strong>Konsep 2 dengan penambahan komponen kritis</strong>. Pendekatan ini menjaga sistem tetap ringan namun menghindari kelemahan fatal SQLite.</p>
+
+        <h3>B.1 Migrasi SQLite ke PostgreSQL (Metadata Superset)</h3>
+        <p>Mengubah database internal Superset dari SQLite bawaan menjadi database PostgreSQL mandiri (dapat berupa kontainer Docker Postgres kecil tambahan) membantu memitigasi tiga kendala operasional utama:</p>
+        <ul>
+          <li><strong>Mengurangi Risiko Database Locked:</strong> PostgreSQL menangani transaksi simultan dengan baik, membantu meminimalkan risiko hambatan locking saat berkolaborasi mendesain dashboard.</li>
+          <li><strong>Keamanan Data Metadata:</strong> PostgreSQL menggunakan mekanisme <em>Write-Ahead Logging (WAL)</em>. Jika proses Docker berhenti mendadak akibat beban kerja tinggi atau lonjakan resource, metadata Superset (dashboard, grafik, role) berpotensi lebih terlindungi dari kerusakan data (korup).</li>
+          <li><strong>Kemudahan Migrasi ke Produksi:</strong> Basis database metadata PostgreSQL ini akan mempermudah tim saat memindahkan seluruh konfigurasi dasbor ke server produksi Linux (baik via Docker Compose maupun Kubernetes manifests).</li>
+        </ul>
+
+        <h3>B.2 Optimasi Dataset Superset (Konsep 2 menggunakan SQLite Local DB)</h3>
+        <p>Tanpa Cube.js, standarisasi data dipindahkan langsung ke dalam pengaturan Dataset di Superset:</p>
+        <ul>
+          <li><strong>Labeling Kolom:</strong> Kolom database analitis yang kaku seperti <code>dtl_tr_id</code> dapat dideklarasikan dengan label manusiawi "ID Detail Transaksi". Pengguna awam cukup melakukan drag-and-drop label ramah tersebut.</li>
+          <li><strong>Datetime Format:</strong> Kunci format waktu standardisasi (misalnya <code>YYYY-MM-DD HH:mm:ss</code>) di tingkat dataset agar tidak terjadi perbedaan representasi zona waktu di tiap grafik.</li>
+          <li><strong>Calculated Columns:</strong> Logika bisnis (misal: <code>Harga * Jumlah * (1 - Diskon)</code>) dapat ditulis langsung sebagai kolom kalkulasi sekali saja menggunakan sintaks SQL ClickHouse, siap dipakai oleh seluruh visualisasi turunan.</li>
+          <li><strong>Keterbatasan Konversi Label:</strong> Konsep 2 menggunakan <code>sqlite3</code> Local DB untuk menyimpan data tabel SQL metadata Superset. Tidak bisa mengonversi label yang sudah ada di Superset secara langsung ke SQLite. Label harus dikonfigurasi ulang dengan mengubah kolom database analitis menjadi string ID unik.</li>
+        </ul>
+ 
+        <h3>B.3 Manajemen Siklus Data di ClickHouse (DML & Partisi)</h3>
+        <p>ClickHouse adalah database columnar yang bersifat <em>append-only</em>. Operasi DML <code>UPDATE</code> atau <code>DELETE</code> standar akan sangat lambat dan memakan resource. Berikut langkah optimasi performanya:</p>
+        <ul>
+          <li><strong>ReplacingMergeTree Engine:</strong> Gunakan engine tabel ini untuk mengatasi data transaksional yang sering berubah status (misal: <code>UPDATE</code> status order_items menjadi <code>REPLACE</code>).</li>
+          <li><strong>Partisi Tabel:</strong> Selalu partisi data tabel ClickHouse (misal per bulan/tahun).</li>
+        </ul>
+        <p><strong>Catatan:</strong> Partisi yang tepat membantu mengurangi kemungkinan terjadinya kueri memindai seluruh tabel data (<em>full-table scan</em>) saat filter dashboard diubah, sehingga membantu menghemat penggunaan CPU ClickHouse.</p>
+        <p><strong>Catatan Teknis Penting:</strong></p>
+        <ul>
+          <li><strong>Konsep 2 Menggunakan SQLite Local DB:</strong> Konversi label ke SQLite <strong>tidak</strong> dilakukan di konsep ini. Label harus dikonfigurasi ulang dengan mengubah kolom database analitis menjadi string ID unik (contoh: <code>dtl_tr_id</code> &rarr; <code>'1000'</code>).</li>
+          <li><strong>Keterbatasan:</strong> Hanya valid untuk testing cepat dan minimalisasi resource.</li>
+          <li><strong>Saran Production:</strong> Untuk deployment production yang memerlukan standardisasi schema, disarankan menggunakan konsep 1 atau menerapkan strategi "Database Migration" (lihat B.1) sebelum mengonversi ke SQLite.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<script>
+// Tabs
+function switchTab(e, id) {
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('on'))
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('on'))
+  document.getElementById(id).classList.add('on')
+  if (e && e.currentTarget) e.currentTarget.classList.add('on')
+}
+
+// Theme toggle
+const thBtn = document.getElementById('themeToggle')
+const thIcon = document.getElementById('themeIcon')
+const html = document.documentElement
+thBtn.addEventListener('click', () => {
+  const dark = html.getAttribute('data-theme') === 'dark'
+  html.setAttribute('data-theme', dark ? 'light' : 'dark')
+  thIcon.innerHTML = dark ? '&#9790;' : '&#9789;'
+})
+
+// Mobile nav
+document.getElementById('hamBtn').addEventListener('click', () => {
+  document.getElementById('navLinks').classList.toggle('open')
+})
+
+// Highlight active nav
+const sections = document.querySelectorAll('section[id]')
+const navLinks = document.querySelectorAll('.nav-links a')
+window.addEventListener('scroll', () => {
+  let cur = ''
+  sections.forEach(s => {
+    if (window.scrollY >= s.offsetTop - 120) cur = s.getAttribute('id')
+  })
+  navLinks.forEach(a => {
+    a.classList.toggle('on', a.getAttribute('href') === '#' + cur)
+  })
+})
+
+// Handle tab navigation links
+document.querySelectorAll('[href^="#konsep1"],[href^="#konsep2"]').forEach(a => {
+  a.addEventListener('click', e => {
+    e.preventDefault()
+    const is1 = a.getAttribute('href') === '#konsep1'
+    switchTab(null, is1 ? 'pane1' : 'pane2')
+    document.querySelector('.tab-btn' + (is1 ? ':first-child' : ':last-child')).classList.add('on')
+    document.getElementById('konsep-arsitektur').scrollIntoView({behavior:'smooth'})
+    document.getElementById('navLinks').classList.remove('open')
+  })
+})
+</script>
 </body>
 </html>

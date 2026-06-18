@@ -52,7 +52,7 @@ Konsep ini mengedepankan integrasi lengkap antara database transaksional (OLTP),
 #### 2. Asynchronous Task & Caching Engine (Celery & Redis)
 - `redis` (Caching & Message Broker): Berperan ganda sebagai media penyimpanan cache memori (untuk menyimpan hasil kueri dashboard guna mempercepat pemuatan berulang) sekaligus sebagai *message broker* (antrean pesan) bagi Celery worker untuk mendelegasikan tugas berat di latar belakang.
 - `celery-worker` (Prosesor Eksekusi Latar Belakang): Mengambil tugas kueri analitis jangka panjang yang dikirim oleh Superset melalui Redis, mengeksekusinya ke ClickHouse secara asinkron, dan menulis hasilnya kembali ke cache. Ini mencegah proses Gunicorn pada `superset-app` mengalami *timeout* atau membuat browser pengguna menggantung (*freeze*).
-- `celery-beat` (Scheduler Terjadwal): Pemicu berkala (*cron-like scheduler*) yang secara otomatis mengirimkan instruksi rendering visualisasi ke Celery worker untuk dikirimkan sebagai laporan terjadwal (melalui Slack atau Email).
+- `celery-beat` (Scheduler Terjadwal): Pemicu berkala (*cron-like scheduler*) yang secara otomatis mengirimkan jadwal tugas ke Redis (message broker) untuk kemudian diambil dan dieksekusi oleh Celery worker guna merender laporan terjadwal (melalui Slack atau Email).
 
 #### 3. Semantic Layer (OLAP Cube)
 - `cube-core` (OLAP Cube & Semantic Layer Server): Container ini bertindak sebagai jembatan deklaratif di atas ClickHouse. Ia mendefinisikan skema data logis (*semantic layer*), relasi antar-tabel, dan metrik bisnis terpusat. Ketika Superset (atau BI tool lain seperti Power BI) mengirimkan kueri, Cube.js menerjemahkannya ke SQL ClickHouse yang optimal dan mengelola *pre-aggregations* (tabel agregasi instan di memori/disk) guna meminimalkan latensi kueri.
@@ -188,7 +188,7 @@ Berikut adalah analisis komprehensif antara **Apache Superset** dan **Microsoft 
 | :--- | :--- | :--- |
 | **Akses & Platform** | Berbasis Web (Cloud-native). Dapat diakses dari sistem operasi apa pun melalui web browser. | Aplikasi Desktop khusus Windows. Pengguna macOS/Linux memerlukan VM atau Remote Desktop. |
 | **Konektivitas Sumber Data** | Koneksi langsung via SQLAlchemy. Relatif mudah dikonfigurasi dan ramah terhadap query besar. | Membutuhkan driver ODBC khusus atau konektor bawaan di Windows. |
-| **Metode Pengambilan Data** | Selalu melakukan query langsung (Direct Query) ke sumber data (source) secara native. | Mendukung *Import Mode* (data diimpor ke RAM lokal) atau *DirectQuery* (query langsung ke sumber data). |
+| **Metode Pengambilan Data** | Mengirimkan query SQL langsung ke sumber data, dengan sebagian pemrosesan hasil (seperti sorting dan filtering) dilakukan di sisi server Superset (Python/Gunicorn) sebelum ditampilkan ke pengguna. | Mendukung *Import Mode* (data diimpor ke RAM lokal) atau *DirectQuery* (query langsung ke sumber data). |
 | **Semantic Layer** | Bersifat tipis (ringan). Untuk logika metrik bisnis yang rumit biasanya dipasangkan dengan Cube.js atau dbt. | Sangat kaya dan matang. Menggunakan bahasa DAX dan pemodelan Tabular untuk relasi data yang kompleks secara bawaan. |
 | **Beban Device Lokal** | Sangat ringan di sisi klien (device lokal hanya menjalankan peramban/browser). | Cenderung berat jika menggunakan *Import Mode* karena memproses data di RAM device lokal. |
 | **Pembaruan Data & File Sharing** | Memungkinkan akses mandiri karena dataset utama sudah terpusat dan terupdate otomatis di web tanpa perlu menunggu kiriman berkas terbaru, dengan tetap mendukung unggah berkas Excel tambahan jika diperlukan. | Jika bergantung pada berkas Excel lokal, berkas perlu diperbarui berkala (baik meminta berkas baru atau menunggu email otomatis) sehingga alur kerjanya kurang praktis. |
@@ -254,12 +254,20 @@ Untuk kelancaran fase pengujian PoC di device dengan resource terbatas ini, disa
   - **Keamanan Data**: Menggunakan mekanisme WAL (Write-Ahead Logging) yang membantu meminimalkan risiko kerusakan data metadata (korup) apabila terjadi crash sistem mendadak.
   - **Kemudahan Migrasi ke Produksi**: Basis database metadata PostgreSQL ini akan mempermudah tim saat memindahkan seluruh konfigurasi dasbor ke server produksi Linux (baik via Docker Compose maupun Kubernetes manifests).
 
-#### B.2 Optimalisasi Labeling & Metadata di Dataset Superset (Pengganti Cube.js)
-Karena Cube.js dibuang untuk menghemat resource, standarisasi data dipindahkan langsung ke dalam pengaturan Dataset di Superset:
+#### B.2 Optimasi Dataset Superset (Konsep 2 menggunakan SQLite Local DB)
+Tanpa Cube.js, standarisasi data dipindahkan langsung ke dalam pengaturan Dataset di Superset:
 * **Labeling Kolom (Human-Readable)**: Ubah nama kolom teknis database yang kaku (misal: `dtl_tr_id` atau `hdr_cust_name`) menjadi nama yang ramah pengguna (misal: `"ID Detail Transaksi"` atau `"Nama Pelanggan"`). Pengguna tinggal melakukan drag-and-drop kolom yang sudah rapi ini.
 * **Penguncian Format Tanggal (Datetime Format)**: Kunci format tanggal di tingkat dataset (misal: `YYYY-MM-DD HH:mm:ss`) agar pengguna tidak perlu memformat tanggal secara manual setiap kali membuat chart baru.
 * **Calculated Columns (Kolom Kalkulasi)**: Tulis rumus kalkulasi bisnis sederhana menggunakan sintaks SQL ClickHouse (misal: `harga * jumlah * (1 - diskon)`) sekali saja di tingkat dataset. Kolom ini otomatis muncul dan siap pakai oleh siapapun.
+* **Keterbatasan Konversi Label**: Konsep 2 menggunakan `sqlite3` Local DB untuk menyimpan data tabel SQL metadata Superset. Tidak bisa mengonversi label yang sudah ada di Superset secara langsung ke SQLite. Label harus dikonfigurasi ulang dengan mengubah kolom database analitis menjadi string ID unik.
 
-#### B.3 Manajemen Data ClickHouse (Memitigasi Karakteristik Columnar)
-* **Operasi DML (Update/Delete) via ReplacingMergeTree**: ClickHouse adalah columnar database yang didesain untuk operasi *insert* cepat dan bersifat *append-only*. Jika data OLTP (Postgres) sering mengalami perubahan status (update/delete), gunakan engine tabel **`ReplacingMergeTree`** di ClickHouse. Engine ini akan menyaring data lama dan menyisakan data dengan versi terbaru secara berkala di latar belakang.
-* **Partisi Tabel**: Lakukan partisi tabel ClickHouse secara berkala (misal berdasarkan bulan atau tahun). Partisi yang tepat membantu meminimalkan risiko terjadinya *full scan* data saat rendering dashboard, sehingga query berpotensi berjalan lebih cepat dan menekan risiko timeout.
+#### B.3 Manajemen Siklus Data di ClickHouse (DML & Partisi)
+* **Mitigasi Performanya**:
+  - **ReplacingMergeTree Engine**: Gunakan engine tabel ini untuk mengatasi data transaksional yang sering berubah status (misal: `UPDATE` status order_items menjadi `REPLACE`).
+  - **Partisi Tabel**: Selalu partisi data tabel ClickHouse (misal per bulan/tahun).
+  - **Catatan**: Partisi yang tepat membantu mengurangi kemungkinan terjadinya kueri memindai seluruh tabel data (full-table scan) saat filter dashboard diubah, sehingga membantu menghemat penggunaan CPU ClickHouse.
+
+* **Catatan Teknis Penting**:
+  - **Konsep 2 Menggunakan SQLite Local DB**: Konversi label ke SQLite **tidak** dilakukan di konsep ini. Label harus dikonfigurasi ulang dengan mengubah kolom database analitis menjadi string ID unik (contoh: `dtl_tr_id` -> `'1000'`).
+  - **Keterbatasan**: Hanya valid untuk testing cepat dan minimalisasi resource.
+  - **Saran Production**: Untuk deployment production yang memerlukan standardisasi schema, disarankan menggunakan konsep 1 atau menerapkan strategi "Database Migration" (lihat B.1) sebelum mengonversi ke SQLite.
